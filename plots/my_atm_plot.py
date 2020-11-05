@@ -34,8 +34,10 @@ plt.title("Temperature Comparison")
 plt.xlabel(r'temperature [K]')
 plt.ylabel(r'altitude [km]')
 plt.plot( 288.15*a[:, 3], a[:,0], 'b-', label = 'USSA 1976')
-plt.plot(b[:,2], b[:,0], 'r-', label = 'my realization')
+plt.plot(b[:,2], b[:,0], 'rp', label = 'my realization')
 plt.legend()
 plt.grid()
 
 plt.savefig('my_atm.png', bbox_inches = 'tight', dpi = 200)
+
+plt.show()

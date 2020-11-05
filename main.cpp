@@ -21,6 +21,14 @@ struct RToR {
     virtual double operator()(double z) = 0;
 };
 
+///It calculates a geometric altitude from a geopotential altitude [km]
+/// |DEF| Geometric height is an altitude above mean sea level.
+/// |DEF| Geopotential is an adjustment to geometric height that
+///       accounts for the variation of gravity with latitude and altitude.
+double geom_from_gp(double H){
+    double earth_radius = 6369.0; ///[km]
+    return H * earth_radius / (H + earth_radius);
+}
 ///altitude is from 0 km to 70 km
 ///temperature and pressure can be calculated
 class StandardAtmosphere{
@@ -49,8 +57,10 @@ public:
     StandardAtmosphere(){
         T.resize(6);
         p.resize(6);
+        std::cout << T[0] << std::endl;
         for(size_t n = 1; n < 7; ++n){
             T[n] = T[n-1] + gamma[n]*(z[n] - z[n-1]);
+            std::cout << T[n] << std::endl;
             if (gamma[n] == 0.0){
                 p[n] = p[n-1]*exp(-g*M*(z[n] - z[n-1])/(R*T[n-1]));
             } else {
@@ -65,161 +75,18 @@ public:
         }
         return T[n-1] + gamma[n]*(zeta - z[n-1]);
     }
-    double pressure(double zeta){
+    double pressure(double alt){
         size_t n = 1;
         for (size_t k = 1; k < 7; ++k) {
-            if (zeta >= z[k-1] and z[k] >= zeta){n = k;}
+            if (alt >= z[k-1] and z[k] >= alt){n = k;}
         }
         if (gamma[n] == 0.0){
-            return p[n-1]*exp(-g*M*(zeta - z[n-1])/(R*T[n-1]));
+            return p[n-1]*exp(-g*M*(alt - z[n-1])/(R*T[n-1]));
         } else {
-            return p[n-1]*pow((1.0 + gamma[n]*(zeta - z[n-1])/T[n-1]), -g*M/(gamma[n]*R));
+            return p[n-1]*pow((1.0 + gamma[n]*(alt - z[n-1])/T[n-1]), -g*M/(gamma[n]*R));
         }
     }
 };
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/*
-/// It takes data from file(-s) and approximates them;
-/// The least square method return y(x) = a*x + b;
-struct LinearLSM : public RToR {
-    std::vector<double> x, y;
-    LinearLSM(const char *filename) {                  /// Constructor makes a vector of points x_i and a vector of f(x_i);
-        std::ifstream fin(filename);
-        for (size_t i = 0; fin; ++i){
-            fin >> x[i] >> y[i];
-        }
-        fin.close();
-    }
-    double operator()(double z) override {                      /// Calculation of the coefficients;
-        double sumxx = 0.0;
-        double sumxy = 0.0;
-        double sumx = 0.0;
-        double sumy = 0.0;
-        for(unsigned i = 0; i < x.size(); ++i){
-            sumxx += x[i] * x[i];
-            sumxy += x[i] * y[i];
-            sumx += x[i];
-            sumy += y[i];
-        }
-        unsigned n = size(x);
-        double a = (n * sumxy - sumx * sumy)/(n * sumxx - sumxx * sumxx);
-        double b = (sumy - a * sumx)/n;
-        return a * z + b;
-    }
-};
-
-/// It takes data from file(-s) and approximates them;
-/// The least square method return y(x) = exp(A * x + B);
-struct ExponentialLSM : public RToR {
-    std::vector<double> x, y;
-    ExponentialLSM(const char *filename) {                     /// Constructor makes a vector of points x_i and a vector of f(x_i);
-        std::ifstream fin(filename);
-        for (size_t i = 0; fin; ++i){
-            fin >> x[i] >> y[i];
-            y[i] = log(y[i]);
-        }
-        fin.close();
-    }
-    double operator()(double z) override {                      /// Calculation of the coefficients like in the case of linear function;
-        double sumxx = 0.0;
-        double sumxy = 0.0;
-        double sumx = 0.0;
-        double sumy = 0.0;
-        for(unsigned i = 0; i < x.size(); ++i){
-            sumxx += x[i] * x[i];
-            sumxy += x[i] * y[i];
-            sumx += x[i];
-            sumy += y[i];
-        }
-        unsigned n = size(x);
-        double A = (n * sumxy - sumx * sumy)/                   /// Conversion of the coefficients for the considered case
-                (n * sumxx - sumxx * sumxx);                    /// of exponentional function;
-        double B = (sumy - A * sumx)/n;
-        return exp(A * z + B);
-    }
-};
-
-/// It takes data from file(-s) and approximates them by the cubic spline method;
-/// It's important not to use this method with quick-change function
-class CubicSpline : public RToR{
-private:
-    struct SplineSet{
-        double a;
-        double b;
-        double c;
-        double d;
-        double x;
-    };
-    std::vector<SplineSet> coef;
-    std::vector<SplineSet> spline(std::vector <double> &x, std::vector <double> &y){
-        size_t n = x.size()-1;
-        std::vector <double> a;
-        a.insert(a.begin(), y.begin(), y.end());
-        std::vector <double> b(n);
-        std::vector <double> d(n);
-        std::vector <double> h;
-
-        for(size_t i = 0; i < n; ++i){
-            h.push_back(x[i+1]-x[i]);
-        }
-        std::vector <double> alpha;
-        alpha.push_back(0);
-        for(size_t i = 1; i < n; ++i){
-            alpha.push_back( 3*(a[i+1]-a[i])/h[i] - 3*(a[i]-a[i-1])/h[i-1]  );
-        }
-        std::vector <double> c(n+1);
-        std::vector <double> l(n+1);
-        std::vector <double> mu(n+1);
-        std::vector <double> z(n+1);
-        l[0] = 1;
-        mu[0] = 0;
-        z[0] = 0;
-        for(size_t i = 1; i < n; ++i){
-            l[i] = 2 *(x[i+1]-x[i-1])-h[i-1]*mu[i-1];
-            mu[i] = h[i]/l[i];
-            z[i] = (alpha[i]-h[i-1]*z[i-1])/l[i];
-        }
-        l[n] = 1;
-        z[n] = 0;
-        c[n] = 0;
-        for(size_t j = n-1; j > -1; --j){
-           // int j = i;
-            c[j] = z [j] - mu[j] * c[j+1];
-            b[j] = (a[j+1]-a[j])/h[j]-h[j]*(c[j+1]+2*c[j])/3;
-            d[j] = (c[j+1]-c[j])/3/h[j];
-        }
-        std::vector<SplineSet> output_set(n);
-        for(size_t i = 0; i < n; ++i){
-            output_set[i].a = a[i];
-            output_set[i].b = b[i];
-            output_set[i].c = c[i];
-            output_set[i].d = d[i];
-            output_set[i].x = x[i];
-        }
-        return output_set;
-    }
-public:
-    CubicSpline(std::vector <double> &x, std::vector <double> &y){
-        coef = spline(x, y);
-    }
-    double operator()(double z){
-        size_t i = 1;
-        while(i < coef.size() and z > coef[i].x){
-            ++i;
-        }
-        SplineSet set = coef[i-1];
-        return set.a*(z-set.x)*(z-set.x)*(z-set.x) +
-               set.b*(z-set.x)*(z-set.x) + set.c*(z-set.x) + set.d;
-    }
-};
-/// It is the simplest current function which is identical zero
-struct ZeroCurrent : public RToR {
-    double operator()(double) override {
-        return 0;
-    }
-};*/
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// explicit conductivity functions
 class Conductivities {
@@ -314,8 +181,6 @@ protected:
                             0.0, zeta[j], new_number_of_points);
                 potential[j] = I1 - (I2 / C1) * (C2 - getIP());
             }
-            /*CubicSpline approx(zeta, potential);
-            phi[i] = approx;*/
             phi[i] = {zeta, potential};
         }
     }
@@ -359,20 +224,72 @@ public:
     }
 };
 
+
+
+class ConductivitySMZ15{
+private:
+    /// constants
+    std::vector<double> A = {49.0 * M_PI / 180.0,
+                             49.0 * M_PI / 180.0,
+                             49.0 * M_PI / 180.0,
+                             57.0 * M_PI / 180.0,
+                             63.0 * M_PI / 180.0,
+                             63.0 * M_PI / 180.0,
+                             63.0 * M_PI / 180.0};
+    std::vector<double> a = {8.0 * M_PI / 180.0,
+                             8.0 * M_PI / 180.0,
+                             8.0 * M_PI / 180.0,
+                             10.0 * M_PI / 180.0,
+                             10.0 * M_PI / 180.0,
+                             9.0 * M_PI / 180.0};
+    std::vector<double> H = {0.0, 5.0, 10.0, 16.0, 23.0, 37.0};                      ///[km]
+    std::vector<double> B = {0.0, 0.0, 5.0, 21.0, 14.0, 0.0};                        ///[km]
+    std::vector<double> b = {0.0, 0.0, 0.0, 14.0, 9.0, 0.0};                         ///[km]
+    std::vector<double> C = {1.4E6, 15.0E6, 64.0E6, 93.0E6, 74.0E6, 45.0E6};        ///[m^(-3)*c^(-1)]
+    std::vector<double> c = {0.1E6, 0.5E6, 2.0E6, 5.0E6, 3.0E6, 2.0E6};             ///[m^(-3)*c^(-1)]
+    std::vector<double> D = {0.8E6, 10.0E6, 236.0E6, 402.0E6, 421.0E6, 450.0E6};    ///[m^(-3)*c^(-1)]
+    std::vector<double> d = {0.1E6, 2.5E6, 83.0E6, 225.0E6, 236.0E6, 243.0E6};      ///[m^(-3)*c^(-1)]
+    //...
+public:
+    double Lymbda(double lymbda, double lymbda_0){
+        if(std::abs(lymbda) < lymbda_0){
+            return std::abs(lymbda);
+        } else {
+            return lymbda_0;
+        }
+    }
+
+    /// ion-pair production rate
+    /// z is the altitude
+    double q(double z, double lymbda, double xi, double p, double T){
+        //...
+    }
+
+
+
+};
+
+
+
+
 int main() {
 
     /*ConcreteGECModel m;
-    std::ofstream fout("/home/mrkozelberg/Desktop/Work/Global_Electric_Circuit/plots/potential_2_columns.txt");
+    std::ofstream fout("plots/potential_2_columns.txt");
     for (size_t i = 0; i < m.getPhiPoints(); ++i){
         fout << m.getPhiX(1,i) << "\t" << m.getPhi(0,i) << "\t" <<  m.getPhi(1,i) << std::endl;
     }
     fout << 70'000 << "\t" << m.getIP() << "\t" << m.getIP() << std::endl;
     fout.close();*/
 
-    std::ofstream fout("/home/mrkozelberg/Desktop/Work/Global_Electric_Circuit/plots/my_atm.txt");
+    std::ofstream fout("plots/my_atm.txt");
+    if (fout.is_open() == false){
+        std::cout << "Impossible to find a file" << std::endl;
+        return 1;
+    }
     StandardAtmosphere atm;
-    for (double z = 0.0; z <= 70.0; ++z){
-        fout << z << "\t" << atm.pressure(z) << "\t" << atm.temperature(z) << "\n";
+    for (double z = 0.0; z <= 70.0; z += 0.1){
+        fout << z << "\t" << atm.pressure(geom_from_gp(z)) << "\t" << atm.temperature(geom_from_gp(z)) << "\n";
     }
     fout.close();
 
