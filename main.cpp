@@ -409,17 +409,30 @@ public:
     double getH(){return H;}
 };
 
-///This is the considered model
-class ConcreteGECModel: public GECModel, private Conductivities, private Currents {
+class ConcreteGECModel: public GECModel, private Conductivities, private Currents, private StandardAtmosphere {
 public:
     ConcreteGECModel(): GECModel() {
-        model.reserve(2);
+        ///This is the simplest parametrization
+        /*model.reserve(2);
         model.push_back({1.0, Conductivities::exp_conductivity, Currents::step_current});
         model.push_back({1.0, Conductivities::exp_conductivity, Currents::zero_current});
+        */
+
+        model.reserve(2);
+        model.push_back({169.0, [this](double z){return Conductivities::conductivity(z, 1.0, 1.0,
+                                                 StandardAtmosphere::pressure(geom_from_gp(z)),
+                                                 StandardAtmosphere::temperature(geom_from_gp(z)));},
+                        Currents::step_current});
+        model.push_back({169.0, [this](double z){return Conductivities::conductivity(z, 1.0, 1.0,
+                                                 StandardAtmosphere::pressure(geom_from_gp(z)),
+                                                 StandardAtmosphere::temperature(geom_from_gp(z)));},
+                        Currents::zero_current});
+
     }
 };
 
 int main(){
+    /// The simplest parametrization (2 columns, exp conuctivities, step current)
     /*ConcreteGECModel m;
     std::ofstream fout("plots/potential_2_columns.txt");
     for(size_t i = 0; i < m.getPhiPoints(); ++i){
@@ -427,7 +440,7 @@ int main(){
     }
     fout << 70'000 << "\t" << m.getIP() << "\t" << m.getIP() << std::endl;
     fout.close();*/
-
+    /// US Standard Atmosphere 1976
     /*std::ofstream fout("plots/my_atm.txt");
     if(fout.is_open() == false){
         std::cout << "Impossible to find a file" << std::endl;
@@ -438,7 +451,7 @@ int main(){
         fout << z << "\t" << atm.pressure(geom_from_gp(z)) << "\t" << atm.temperature(geom_from_gp(z)) << "\n";
     }
     fout.close();*/
-
+    /// Conductivity parametrization
     std::ofstream fout("plots/cond.txt");
     if(fout.is_open() == false){
         std::cout << "Impossible to find a file" << std::endl;
