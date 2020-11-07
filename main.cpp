@@ -419,12 +419,7 @@ public:
     }
 };
 
-
-
-
-
-int main() {
-
+int main(){
     /*ConcreteGECModel m;
     std::ofstream fout("plots/potential_2_columns.txt");
     for(size_t i = 0; i < m.getPhiPoints(); ++i){
@@ -453,7 +448,9 @@ int main() {
     Conductivities sigma;
     for (double z = 0.0; z <= 70.1; z += 0.1){
         /// z is a geometric altitude
-        fout << z << "\t" << sigma.conductivity(z, 1.0, 0.5, atm.pressure(geom_from_gp(z)), atm.temperature(geom_from_gp(z))) << "\n";
+        fout << z << "\t" << sigma.conductivity(z, 1.0, 0.0, atm.pressure(geom_from_gp(z)), atm.temperature(geom_from_gp(z))) << "\t"
+             << sigma.conductivity(z, 1.0, 0.5, atm.pressure(geom_from_gp(z)), atm.temperature(geom_from_gp(z))) << "\t"
+             << sigma.conductivity(z, 1.0, 1.0, atm.pressure(geom_from_gp(z)), atm.temperature(geom_from_gp(z))) << "\n";
     }
     fout.close();
 

@@ -12,7 +12,9 @@ plt.title("Conductivity Parametrization")
 
 plt.xlabel(r'conductivity [S/cm]')
 plt.ylabel(r'altitude [km]')
-plt.plot(a[:,1], a[:,0], 'r-', label = 'my realization')
+plt.plot(a[:,1], a[:,0], 'r-', label = '$xi = 0$')
+plt.plot(a[:,2], a[:,0], 'b-', label = '$xi = 0.5$')
+plt.plot(a[:,3], a[:,0], 'g-', label = '$xi = 1$')
 plt.legend()
 plt.grid()
 
