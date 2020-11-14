@@ -15,12 +15,6 @@ struct Column {
     std::function<double(double)> current;
 };
 
-///At the moment it's useless
-struct RToR {
-    virtual ~RToR() {}
-    virtual double operator()(double z) = 0;
-};
-
 ///It calculates a geometric altitude from a geopotential altitude [km]
 /// |DEF| Geometric height is an altitude above mean sea level.
 /// |DEF| Geopotential is an adjustment to geometric height that
@@ -29,6 +23,7 @@ double geom_from_gp(double H){
     double earth_radius = 6369.0; ///[km]
     return H * earth_radius / (H + earth_radius);
 }
+
 ///altitude is from 0 km to 70 km
 ///temperature and pressure can be calculated
 class StandardAtmosphere{
@@ -70,14 +65,14 @@ public:
     };
     double temperature(double zeta){
         size_t n = 1;
-        for (size_t k = 1; k < 7; ++k) {
+        for(size_t k = 1; k < 7; ++k) {
             if (zeta >= z[k-1] and z[k] >= zeta){n = k;}
         }
         return T[n-1] + gamma[n]*(zeta - z[n-1]);
     }
     double pressure(double alt){
         size_t n = 1;
-        for (size_t k = 1; k < 7; ++k) {
+        for(size_t k = 1; k < 7; ++k) {
             if (alt >= z[k-1] and z[k] >= alt){n = k;}
         }
         if (gamma[n] == 0.0){
@@ -99,8 +94,8 @@ private:
         }
     }
     /// constants
-    double T_q = 297.15;            ///[K]
-    double p_q = 98658.55232;       ///[Pa]
+    static constexpr double T_q = 297.15;            ///[K]
+    static constexpr double p_q = 98658.55232;       ///[Pa]
     std::vector<double> A = {49.0 * M_PI / 180.0,
                              49.0 * M_PI / 180.0,
                              49.0 * M_PI / 180.0,
@@ -227,16 +222,16 @@ public:
 class TZ06{
 private:
     /// constants
-    double A = 6.0E-6;                                                  ///[m^3 / s]
-    double a = 0.5;
-    std::vector<double> B = {0.0, 1.702E-12, 1.035E-12, 6.471E-12};     ///[m^3 / s]
-    double T_0 = 300.0;                                                 ///[K]
-    double N_0 = 2.69E25;                                               ///[m^(-3)]
+    static constexpr double A = 6.0E-6;                                                  ///[m^3 / s]
+    static constexpr double a = 0.5;
+    std::vector<double> B = {0.0, 1.702E-12, 1.035E-12, 6.471E-12};                      ///[m^3 / s]
+    static constexpr double T_0 = 300.0;                                                 ///[K]
+    static constexpr double N_0 = 2.69E25;                                               ///[m^(-3)]
     std::vector<double> b = {0.0, -1.984, 4.374, -0.191};
-    std::vector<double> Z = {0.0, 10.0, 20.0};                          ///[km]
+    std::vector<double> Z = {0.0, 10.0, 20.0};                                           ///[km]
     std::vector<double> c = {0.0, -0.451, 0.769, 0.901};
     /// Boltzmann constant
-    double k = 1.380649E-23;                                            ///[J/K]
+    static constexpr double k = 1.380649E-23;                                            ///[J/K]
     /// concentration of air molecules
     double N(double p, double T){
         return p / (k * T);
@@ -262,11 +257,11 @@ public:
 class ZT07{
 private:
     /// constants
-    double mu_0_plus = 1.4E-4;              /// [m^2/(V*s)]
-    double mu_0_minus = 1.9E-4;             /// [m^2/(V*s)]
-    double T_mu = 120;                      /// [K]
-    double T_0 = 288.15;                    /// [K]
-    double p_0 = 101'325;                   /// [Pa]
+    static constexpr double mu_0_plus = 1.4E-4;              /// [m^2/(V*s)]
+    static constexpr double mu_0_minus = 1.9E-4;             /// [m^2/(V*s)]
+    static constexpr double T_mu = 120;                      /// [K]
+    static constexpr double T_0 = 288.15;                    /// [K]
+    static constexpr double p_0 = 101'325;                   /// [Pa]
 public:
     ZT07(){};
     /// ion mobilities [m^2/(V*s)]
@@ -282,9 +277,11 @@ public:
 /// explicit conductivity functions
 class Conductivities: private SMZ15, private TZ06, private ZT07{
 protected:
-    static constexpr double sigma_0 = 5.0e-14, H_0 = 6'000.0;
+    static constexpr double sigma_0 = 5.0e-14;
+    static constexpr double H_0 = 6.0;                      /// [km]
     static constexpr double e_0 = 1.602176634E-19;          /// [C]
 public:
+    ///z in kilometres
     static double exp_conductivity(double z){
              return sigma_0*exp(z/H_0);
     };
@@ -303,7 +300,7 @@ protected:
 public:
     static double step_current(double z){
 
-        if(z>5'000.0 and z<10'000.0){
+        if(z>=5.0 and z<10.0){
             return j_0;
         } else{
             return 0.0;
@@ -314,71 +311,74 @@ public:
     }
 };
 
-struct Tank{
-    std::vector<double> a;
-    std::vector<double> b;
-};
-
-
 /// It is the central class, here you can find any parameters of the model
 class GECModel{
 protected:
-    double H = 70'000;
-    double V = 0;
-    //std::vector<std::function<double(double)>> phi;
-    std::vector<Tank> phi;
-    size_t phi_points = 100;
+    static constexpr double H = 70.0;
+    double V = 0.0;
+    std::vector<std::vector<double>> potential;
+    std::vector<double> altitude;
+    unsigned pot_points = 70;
     bool isVCalculated = false;
     bool isPhiCalculated = false;
     std::vector<Column> model;
-    unsigned number_of_points = 100'001;
+    unsigned int_points = 5'001;
+
     /// This is a function that calculates an ionosphere potention
     double calc_ip() {
         std::vector<double> area_by_int(model.size());
         std::vector<double> int_of_cur_by_cond(model.size());
-        for (unsigned i = 0; i < model.size(); ++i){
+        for(unsigned i = 0; i < model.size(); ++i){
             area_by_int[i] = model[i].area / integrate_Simpson(
                         [this,i](double z) {return 1 / model[i].conductivity(z);},
-                        0.0, H, number_of_points);
+                        0.0, H, int_points);
             int_of_cur_by_cond[i] = integrate_Simpson(
                         [this,i](double z) {return model[i].current(z) / model[i].conductivity(z);},
-                        0.0, H, number_of_points);
+                        0.0, H, int_points);
         }
         double up = 0.0, down = 0.0;
-        for (unsigned i = 0; i < model.size(); ++i){
+        for(unsigned i = 0; i < model.size(); ++i){
             up += area_by_int[i] * int_of_cur_by_cond[i];
             down += area_by_int[i];
         }
         return up / down;
     }
+
     /// This is a function that calculates dependence of the potention on the varying altitude
-    void calc_phi(){
-        size_t new_number_of_points = 2.0 * unsigned(number_of_points / phi_points) + 1;
-        phi.reserve(model.size());
+    void calc_pot(){
+        //unsigned new_int_points = 2 * unsigned(int_points / pot_points) + 1;
+        potential.reserve(model.size());
         double I1 = 0.0, I2 = 0.0, C1, C2;
-        for (unsigned i = 0; i < model.size(); ++i){
-            std::vector<double> potential(phi_points), zeta(phi_points);
+        altitude.reserve(pot_points);
+        altitude[0] = 0.0;
+        for(size_t j = 1; j < pot_points; ++j){
+             altitude[j] = j * H / pot_points;
+        }
+        potential.reserve(model.size());
+        for(unsigned i = 0; i < model.size(); ++i){
+            potential[i].reserve(pot_points);
+        }
+        for(unsigned i = 0; i < model.size(); ++i){
             C1 = integrate_Simpson(
                         [this,i](double z) {return 1 / model[i].conductivity(z);},
-                        0.0, H, number_of_points);
+                        0.0, H, int_points);
             C2 = integrate_Simpson(
                         [this,i](double z) {return model[i].current(z) / model[i].conductivity(z);},
-                        0.0, H, number_of_points);
-            zeta[0] = 0.0;
-            potential[0] = 0.0;
-            for (size_t j = 1; j < phi_points; ++j){
-                zeta[j] = j * H / phi_points;
-                I1 = integrate_Simpson(
+                        0.0, H, int_points);
+            potential[i][0] = 0.0;
+            for(size_t j = 1; j < pot_points; ++j){
+                /// WARNING! Integrate from 0 only!!
+                I1 = integrate_trap(
                             [this,i](double z) {return model[i].current(z) / model[i].conductivity(z);},
-                            0.0, zeta[j], new_number_of_points);
-                I2 = integrate_Simpson(
+                            0.0, altitude[j], int_points);
+                I2 = integrate_trap(
                             [this,i](double z) {return 1 / model[i].conductivity(z);},
-                            0.0, zeta[j], new_number_of_points);
-                potential[j] = I1 - (I2 / C1) * (C2 - getIP());
+                            0.0, altitude[j], int_points);
+                potential[i][j] = I1 - (I2 / C1) * (C2 - getIP());
             }
-            phi[i] = {zeta, potential};
         }
     }
+
 public:
     GECModel(std::vector<Column> aModel): model(std::move(aModel)) {
     }
@@ -391,55 +391,51 @@ public:
         }
         return V;
     }
-    double getPhi(size_t i, size_t j) {
+    double getPot(size_t col, size_t j) {
         if (not isPhiCalculated) {
-            calc_phi();
+            calc_pot();
             isPhiCalculated = true;
         }
-        return phi[i].b[j];
+        return potential[col][j];
     }
-    double getPhiX(size_t i, size_t j) {
+    double getAlt(size_t j) {
         if (not isPhiCalculated) {
-            calc_phi();
+            calc_pot();
             isPhiCalculated = true;
         }
-        return phi[i].a[j];
+        return altitude[j];
     }
-    size_t getPhiPoints(){return phi_points;}
+    size_t getPhiPoints(){return pot_points;}
     double getH(){return H;}
 };
 
 class ConcreteGECModel: public GECModel, private Conductivities, private Currents, private StandardAtmosphere {
+private:
 public:
     ConcreteGECModel(): GECModel() {
         ///This is the simplest parametrization
-        /*model.reserve(2);
-        model.push_back({1.0, Conductivities::exp_conductivity, Currents::step_current});
-        model.push_back({1.0, Conductivities::exp_conductivity, Currents::zero_current});
-        */
-
         model.reserve(2);
-        model.push_back({169.0, [this](double z){return Conductivities::conductivity(z, 1.0, 1.0,
-                                                 StandardAtmosphere::pressure(geom_from_gp(z)),
-                                                 StandardAtmosphere::temperature(geom_from_gp(z)));},
-                        Currents::step_current});
-        model.push_back({169.0, [this](double z){return Conductivities::conductivity(z, 1.0, 1.0,
-                                                 StandardAtmosphere::pressure(geom_from_gp(z)),
-                                                 StandardAtmosphere::temperature(geom_from_gp(z)));},
-                        Currents::zero_current});
-
+        model.push_back({1.0,
+                         [this](double z){return Conductivities::conductivity(z, 1.2, 1.0, StandardAtmosphere::pressure(geom_from_gp(z)),
+                                          StandardAtmosphere::temperature(geom_from_gp(z)));},
+                         Currents::step_current});
+        model.push_back({1.0,
+                         [this](double z){return Conductivities::conductivity(z, 0.9, 1.0, StandardAtmosphere::pressure(geom_from_gp(z)),
+                                          StandardAtmosphere::temperature(geom_from_gp(z)));},
+                         Currents::zero_current});
     }
 };
 
 int main(){
-    /// The simplest parametrization (2 columns, exp conuctivities, step current)
-    /*ConcreteGECModel m;
+    /// The simplest parametrization (2 columns, considered conductivity, step and zero currents)
+    ConcreteGECModel m;
     std::ofstream fout("plots/potential_2_columns.txt");
     for(size_t i = 0; i < m.getPhiPoints(); ++i){
-        fout << m.getPhiX(1,i) << "\t" << m.getPhi(0,i) << "\t" <<  m.getPhi(1,i) << std::endl;
+        fout << m.getAlt(i) << "\t" << m.getPot(0,i) << "\t" <<  m.getPot(1,i) << std::endl;
     }
-    fout << 70'000 << "\t" << m.getIP() << "\t" << m.getIP() << std::endl;
-    fout.close();*/
+    fout << 70 << "\t" << m.getIP() << "\t" << m.getIP() << std::endl;
+    fout.close();
+
     /// US Standard Atmosphere 1976
     /*std::ofstream fout("plots/my_atm.txt");
     if(fout.is_open() == false){
@@ -447,25 +443,25 @@ int main(){
         return 1;
     }
     StandardAtmosphere atm;
-    for (double z = 0.0; z <= 70.0; z += 0.1){
+    for(double z = 0.0; z <= 70.0; z += 0.1){
         fout << z << "\t" << atm.pressure(geom_from_gp(z)) << "\t" << atm.temperature(geom_from_gp(z)) << "\n";
     }
     fout.close();*/
+
     /// Conductivity parametrization
-    std::ofstream fout("plots/cond.txt");
+    /*std::ofstream fout("plots/cond.txt");
     if(fout.is_open() == false){
         std::cout << "Impossible to find a file" << std::endl;
         return 1;
     }
     StandardAtmosphere atm;
     Conductivities sigma;
-    for (double z = 0.0; z <= 70.1; z += 0.1){
+    for(double z = 0.0; z <= 70.1; z += 0.1){
         /// z is a geometric altitude
         fout << z << "\t" << sigma.conductivity(z, 1.0, 0.0, atm.pressure(geom_from_gp(z)), atm.temperature(geom_from_gp(z))) << "\t"
              << sigma.conductivity(z, 1.0, 0.5, atm.pressure(geom_from_gp(z)), atm.temperature(geom_from_gp(z))) << "\t"
              << sigma.conductivity(z, 1.0, 1.0, atm.pressure(geom_from_gp(z)), atm.temperature(geom_from_gp(z))) << "\n";
     }
-    fout.close();
-
+    fout.close();*/
     return 0;
 }
