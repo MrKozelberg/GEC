@@ -88,7 +88,7 @@ public:
 /// COMPUTATION OF THE ION-PAIR PRODUCTION RATE ASSOCIATED WITH GALACTIC COSMIC RAYS
 class SMZ15: private StdAtm{
 private:
-    double Lymbda(double lymbda, double lymbda_0){
+    double L(double lymbda, double lymbda_0){
         if(std::abs(lymbda) < lymbda_0){
             return std::abs(lymbda);
         } else {
@@ -152,16 +152,14 @@ private:
         std::vector<double> vec(6);
         vec[0] = 0.0;
         for(size_t i = 1; i < 6; ++i){
-            vec[i] = H[i] + deltaH(xi)[i] * pow(sin(Lymbda(lymbda, K(xi)[i])) /
-                                                sin(K(xi)[i]), g[i]);
+            vec[i] = H[i] + deltaH(xi)[i] * pow(sin(L(lymbda, K(xi)[i])) / sin(K(xi)[i]), g[i]);
         }
         return vec;
     }
     std::vector<double> Q(double lymbda, double xi){
         std::vector<double> vec(6);
         for(size_t i = 0; i < 6; ++i){
-            vec[i] = U(xi)[i] + deltaU(xi)[i] * pow(sin(Lymbda(lymbda, K(xi)[i])) /
-                                                sin(K(xi)[i]), h[i]);
+            vec[i] = U(xi)[i] + deltaU(xi)[i] * pow(sin(L(lymbda, K(xi)[i])) / sin(K(xi)[i]), h[i]);
         }
         return vec;
     }
@@ -215,7 +213,11 @@ public:
     SMZ15(){};
     ///ion-pair production rate
     ///z is a geometrical altitude [km] (LOOK DEF ABOVE)
-    ///p [Pa] | T [K] | lymbda [rad] | q, Q [m^(-3)*s^(-1)] | xi = (sin(pi*t))^2
+    ///p [Pa] | T [K] | lymbda [deg] | q, Q [m^(-3)*s^(-1)] | xi = (sin(pi*t))^2
+    /// takes the altitude z in km, the latitude lat in degrees and the parameter xi representing the solar cycle phase
+    /// xi is confined between 0 and 1; xi = 0 corresponds to solar minima, xi = 1 corresponds to solar maxima
+    /// returns the ion-pair production rate q in m^(-3) s^(-1)
+    /// uses the parameterisation of Slyunyaev et al. (2015)
     double q(double z, double lymbda, double xi){
         return Q_STP(z, lymbda, xi) * StdAtm::pressure(z) * T_q / (p_q * StdAtm::temperature(z));
     }
@@ -225,7 +227,7 @@ public:
 class TZ06: private StdAtm{
 private:
     /// constants
-    static constexpr double A = 6.0E-6;                                                  ///[m^3 / s]
+    static constexpr double A = 6.0E-14;                                                  ///[m^3 / s]
     static constexpr double a = 0.5;
     std::vector<double> B = {0.0, 1.702E-12, 1.035E-12, 6.471E-12};                      ///[m^3 / s]
     static constexpr double T_0 = 300.0;                                                 ///[K]
@@ -471,16 +473,16 @@ int main(){
     fout.close();*/
 
     std::ofstream fout("plots/test2.txt");
-        if(fout.is_open() == false){
-            std::cout << "Impossible to find a file" << std::endl;
-            return 1;
-        }
-        Conductivities sigma;
-        SMZ15 a;
-        for(double z = 0.0; z <= 70.1; z += 0.1){
-            fout << z << "\t" << a.q(z, 1.0, 0.0) << "\n";
-        }
-        fout.close();
+    if(fout.is_open() == false){
+        std::cout << "Impossible to find a file" << std::endl;
+        return 1;
+    }
+    Conductivities sigma;
+    //SMZ15 a;
+    for(double z = 0.0; z <= 70.1; ++z){
+        fout << z << "\t" << sigma.conductivity(z, 1.0, 0.0) << "\n";
+    }
+    fout.close();
 
     return 0;
 }
