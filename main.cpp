@@ -15,18 +15,18 @@ struct Column {
     std::function<double(double)> current;
 };
 
-///It calculates a geometric altitude from a geopotential altitude [km]
+///It calculates a geopotential altitude from a geometric altitude [km]
 /// |DEF| Geometric height is an altitude above mean sea level.
 /// |DEF| Geopotential is an adjustment to geometric height that
 ///       accounts for the variation of gravity with latitude and altitude.
-double geom_from_gp(double H){
-    double earth_radius = 6369.0; ///[km]
+double gp_from_geom(double H){
+    double earth_radius = 6356.766;                 ///[km] according to the U.S. Standard Atmosphere (1976)
     return H * earth_radius / (H + earth_radius);
 }
 
 ///altitude is from 0 km to 70 km
 ///temperature and pressure can be calculated
-class StandardAtmosphere{
+class StdAtm{
 private:
     double T_0 = 288.15;
     double p_0 = 101'325;
@@ -49,7 +49,7 @@ private:
                                  0.0,
                                  -2.8};
 public:
-    StandardAtmosphere(){
+    StdAtm(){
         T.resize(6);
         p.resize(6);
         //std::cout << T[0] << std::endl;
@@ -63,14 +63,16 @@ public:
             }
         }
     };
-    double temperature(double zeta){
+    double temperature(double H){
+        double zeta = gp_from_geom(H);
         size_t n = 1;
         for(size_t k = 1; k < 7; ++k) {
             if (zeta >= z[k-1] and z[k] >= zeta){n = k;}
         }
         return T[n-1] + gamma[n]*(zeta - z[n-1]);
     }
-    double pressure(double alt){
+    double pressure(double H){
+        double alt = gp_from_geom(H);
         size_t n = 1;
         for(size_t k = 1; k < 7; ++k) {
             if (alt >= z[k-1] and z[k] >= alt){n = k;}
@@ -84,7 +86,7 @@ public:
 };
 
 /// COMPUTATION OF THE ION-PAIR PRODUCTION RATE ASSOCIATED WITH GALACTIC COSMIC RAYS
-class SMZ15{
+class SMZ15: private StdAtm{
 private:
     double Lymbda(double lymbda, double lymbda_0){
         if(std::abs(lymbda) < lymbda_0){
@@ -97,7 +99,6 @@ private:
     static constexpr double T_q = 297.15;            ///[K]
     static constexpr double p_q = 98658.55232;       ///[Pa]
     std::vector<double> A = {49.0 * M_PI / 180.0,
-                             49.0 * M_PI / 180.0,
                              49.0 * M_PI / 180.0,
                              57.0 * M_PI / 180.0,
                              63.0 * M_PI / 180.0,
@@ -170,7 +171,9 @@ private:
         vec[1] = Q(lymbda, xi)[1] * log(Q(lymbda, xi)[1] / Q(lymbda, xi)[0]) / Z(lymbda, xi)[1];
         vec[2] =  2.0 * (Q(lymbda, xi)[2] - Q(lymbda, xi)[1]) / (Z(lymbda, xi)[2] - Z(lymbda, xi)[1])
                - vec[1];
-        vec[4] =  3.0 * (Q(lymbda, xi)[4] - Q(lymbda, xi)[5]) / (Z(lymbda, xi)[5] - Z(lymbda, xi)[4]);
+        if (Z(lymbda, xi)[4] != Z(lymbda, xi)[5]){
+            vec[4] =  3.0 * (Q(lymbda, xi)[4] - Q(lymbda, xi)[5]) / (Z(lymbda, xi)[5] - Z(lymbda, xi)[4]);
+        } else vec[4] = 0.0;
         return vec;
     }
     double A_Q(double lymbda, double xi){
@@ -188,7 +191,7 @@ private:
                 ((Q(lymbda, xi)[2] - Q(lymbda, xi)[1]) - P(lymbda, xi)[1] * (Z(lymbda, xi)[2] -
                 Z(lymbda, xi)[1])));
     }
-    double Q(double z, double lymbda, double xi){
+    double Q_STP(double z, double lymbda, double xi){
         std::vector<double> Z_ = Z(lymbda, xi), P_ = P(lymbda, xi), Q_ = Q(lymbda, xi);
         double A_Q_ = A_Q(lymbda, xi), B_Q_ = B_Q(lymbda, xi), C_Q_ = C_Q(lymbda, xi);
         if(z < Z_[1]){
@@ -213,13 +216,13 @@ public:
     ///ion-pair production rate
     ///z is a geometrical altitude [km] (LOOK DEF ABOVE)
     ///p [Pa] | T [K] | lymbda [rad] | q, Q [m^(-3)*s^(-1)] | xi = (sin(pi*t))^2
-    double q(double z, double lymbda, double xi, double p, double T){
-        return Q(z, lymbda, xi) * p * T_q / (p_q * T);
+    double q(double z, double lymbda, double xi){
+        return Q_STP(z, lymbda, xi) * StdAtm::pressure(z) * T_q / (p_q * StdAtm::temperature(z));
     }
 };
 
 /// COMPUTATION OF THE ION-ION RECOMBINATION COEFFICIENT [TZ 06]
-class TZ06{
+class TZ06: private StdAtm{
 private:
     /// constants
     static constexpr double A = 6.0E-6;                                                  ///[m^3 / s]
@@ -233,28 +236,28 @@ private:
     /// Boltzmann constant
     static constexpr double k = 1.380649E-23;                                            ///[J/K]
     /// concentration of air molecules
-    double N(double p, double T){
-        return p / (k * T);
+    double N(double z){
+        return StdAtm::pressure(z) / (k * StdAtm::temperature(z));
     }
 public:
     TZ06(){};
     /// ION-ION RECOMBINATION COEFFICIENT alpha
     /// z [km] | p [Pa] | T [K]
-    double alpha(double z, double p, double T){
-        double var = A * pow(T_0 / T, a);
+    double alpha(double z){
+        double var = A * pow(T_0 / StdAtm::temperature(z), a);
         if(z < Z[1]){
-            var += B[1] * pow(T_0 / T, b[1]) * pow(N(p, T) / N_0, c[1]);
+            var += B[1] * pow(T_0 / StdAtm::temperature(z), b[1]) * pow(N(z) / N_0, c[1]);
         } else if(z < Z[2]){
-            var += B[2] * pow(T_0 / T, b[2]) * pow(N(p, T) / N_0, c[2]);
+            var += B[2] * pow(T_0 / StdAtm::temperature(z), b[2]) * pow(N(z) / N_0, c[2]);
         } else{
-            var += B[3] * pow(T_0 / T, b[3]) * pow(N(p, T) / N_0, c[3]);
+            var += B[3] * pow(T_0 / StdAtm::temperature(z), b[3]) * pow(N(z) / N_0, c[3]);
         }
         return var;
     }
 };
 
 /// COMPUTATION OF THE ION MOBILITIES
-class ZT07{
+class ZT07: private StdAtm{
 private:
     /// constants
     static constexpr double mu_0_plus = 1.4E-4;              /// [m^2/(V*s)]
@@ -272,6 +275,10 @@ public:
     double mu_minus(double p, double T){
         return mu_0_minus * p_0 / p * pow(T / T_0, 1.5) * (T_0 + T_mu) / (T + T_mu);
     }
+    double mu_sum(double z){
+        return mu_plus(StdAtm::pressure(z), StdAtm::temperature(z)) +
+                mu_minus(StdAtm::pressure(z), StdAtm::temperature(z));
+    }
 };
 
 /// explicit conductivity functions
@@ -288,8 +295,8 @@ public:
     static double const_conductivity(double z){
         return sigma_0;
     }
-    double conductivity(double z, double lymbda, double xi, double p, double T){
-        return e_0 * (mu_plus(p, T) + mu_minus(p, T)) * sqrt(q(z, lymbda, xi, p, T) / alpha(z, p, T));
+    double conductivity(double z, double lymbda, double xi){
+        return e_0 * mu_sum(z) * sqrt(q(z, lymbda, xi) / alpha(z));
     }
 };
 
@@ -322,7 +329,7 @@ protected:
     bool isVCalculated = false;
     bool isPhiCalculated = false;
     std::vector<Column> model;
-    unsigned int_points = 5'001;
+    unsigned int_points = 10'001;
 
     /// This is a function that calculates an ionosphere potention
     double calc_ip() {
@@ -367,11 +374,11 @@ protected:
                         0.0, H, int_points);
             potential[i][0] = 0.0;
             for(size_t j = 1; j < pot_points; ++j){
-                /// WARNING! Integrate from 0 only!!
-                I1 = integrate_trap(
+                /// WARNING! Integrate from 0 only!! (?)
+                I1 = integrate_Simpson(
                             [this,i](double z) {return model[i].current(z) / model[i].conductivity(z);},
                             0.0, altitude[j], int_points);
-                I2 = integrate_trap(
+                I2 = integrate_Simpson(
                             [this,i](double z) {return 1 / model[i].conductivity(z);},
                             0.0, altitude[j], int_points);
                 potential[i][j] = I1 - (I2 / C1) * (C2 - getIP());
@@ -409,42 +416,42 @@ public:
     double getH(){return H;}
 };
 
-class ConcreteGECModel: public GECModel, private Conductivities, private Currents, private StandardAtmosphere {
+class ConcreteGECModel: public GECModel, private Conductivities, private Currents, private StdAtm {
 private:
 public:
     ConcreteGECModel(): GECModel() {
         ///This is the simplest parametrization
         model.reserve(2);
-        model.push_back({1.0,
-                         [this](double z){return Conductivities::conductivity(z, 1.2, 1.0, StandardAtmosphere::pressure(geom_from_gp(z)),
-                                          StandardAtmosphere::temperature(geom_from_gp(z)));},
-                         Currents::step_current});
-        model.push_back({1.0,
-                         [this](double z){return Conductivities::conductivity(z, 0.9, 1.0, StandardAtmosphere::pressure(geom_from_gp(z)),
-                                          StandardAtmosphere::temperature(geom_from_gp(z)));},
-                         Currents::zero_current});
+        model.push_back({1.0, [this](double z){return Conductivities::conductivity(z, 1.2, 1.0);}, Currents::step_current});
+        model.push_back({1.0, [this](double z){return Conductivities::conductivity(z, 0.9, 1.0);}, Currents::zero_current});
     }
 };
 
 int main(){
+
     /// The simplest parametrization (2 columns, considered conductivity, step and zero currents)
-    ConcreteGECModel m;
+    /*ConcreteGECModel m;
     std::ofstream fout("plots/potential_2_columns.txt");
+    if(fout.is_open() == false){
+        std::cout << "Impossible to find a file" << std::endl;
+        return 1;
+    }
     for(size_t i = 0; i < m.getPhiPoints(); ++i){
         fout << m.getAlt(i) << "\t" << m.getPot(0,i) << "\t" <<  m.getPot(1,i) << std::endl;
     }
     fout << 70 << "\t" << m.getIP() << "\t" << m.getIP() << std::endl;
-    fout.close();
+    fout.close();*/
 
     /// US Standard Atmosphere 1976
+    /// This part of programme works correctly
     /*std::ofstream fout("plots/my_atm.txt");
     if(fout.is_open() == false){
         std::cout << "Impossible to find a file" << std::endl;
         return 1;
     }
-    StandardAtmosphere atm;
-    for(double z = 0.0; z <= 70.0; z += 0.1){
-        fout << z << "\t" << atm.pressure(geom_from_gp(z)) << "\t" << atm.temperature(geom_from_gp(z)) << "\n";
+    StdAtm atm;
+    for(double z = 0.0; z <= 70.1; z += 0.1){
+        fout << z << "\t" << atm.temperature(z) << "\t" << atm.pressure(z) << "\n";
     }
     fout.close();*/
 
@@ -454,14 +461,26 @@ int main(){
         std::cout << "Impossible to find a file" << std::endl;
         return 1;
     }
-    StandardAtmosphere atm;
     Conductivities sigma;
     for(double z = 0.0; z <= 70.1; z += 0.1){
         /// z is a geometric altitude
-        fout << z << "\t" << sigma.conductivity(z, 1.0, 0.0, atm.pressure(geom_from_gp(z)), atm.temperature(geom_from_gp(z))) << "\t"
-             << sigma.conductivity(z, 1.0, 0.5, atm.pressure(geom_from_gp(z)), atm.temperature(geom_from_gp(z))) << "\t"
-             << sigma.conductivity(z, 1.0, 1.0, atm.pressure(geom_from_gp(z)), atm.temperature(geom_from_gp(z))) << "\n";
+        fout << z << "\t" << sigma.conductivity(z, 1.0, 0.0) << "\t"
+             << sigma.conductivity(z, 1.0, 0.5) << "\t"
+             << sigma.conductivity(z, 1.0, 1.0) << "\n";
     }
     fout.close();*/
+
+    std::ofstream fout("plots/test2.txt");
+        if(fout.is_open() == false){
+            std::cout << "Impossible to find a file" << std::endl;
+            return 1;
+        }
+        Conductivities sigma;
+        SMZ15 a;
+        for(double z = 0.0; z <= 70.1; z += 0.1){
+            fout << z << "\t" << a.q(z, 1.0, 0.0) << "\n";
+        }
+        fout.close();
+
     return 0;
 }
