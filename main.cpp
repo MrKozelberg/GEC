@@ -4,6 +4,7 @@
 #include <functional>
 #include <string>
 #include <cmath>
+#include <iomanip>
 
 #include "integral.h"
 
@@ -29,42 +30,43 @@ double gp_from_geom(double H){
 class StdAtm{
 private:
     double T_0 = 288.15;
-    double p_0 = 101'325;
+    double p_0 = 1.01325e5;
     double R = 8.31432;
     double M = 28.9644;
-    double g = 9.80655;
-    std::vector <double> z = {0.0,
-                             11.0,
-                             20.0,
-                             32.0,
-                             47.0,
-                             51.0,
-                             70.0};
-    std::vector <double> T = {T_0}, p = {p_0};
-    std::vector <double> gamma = {0.0,
-                                 -6.5,
-                                 0.0,
-                                 1.0,
-                                 2.8,
-                                 0.0,
-                                 -2.8};
+    double g = 9.80665;
+    constexpr static double z[7] = {0.0, 11.0, 20.0, 32.0, 47.0, 51.0, 70.0};
+    double T[7], p[7];
+    constexpr static double gamma[7] = {0.0, -6.5, 0.0, 1.0, 2.8, 0.0, -2.8};
 public:
     StdAtm(){
-        T.resize(6);
-        p.resize(6);
-        //std::cout << T[0] << std::endl;
+        T[0] = T_0; p[0] = p_0;
         for(size_t n = 1; n < 7; ++n){
             T[n] = T[n-1] + gamma[n]*(z[n] - z[n-1]);
-            //std::cout << T[n] << std::endl;
             if (gamma[n] == 0.0){
                 p[n] = p[n-1]*exp(-g*M*(z[n] - z[n-1])/(R*T[n-1]));
             } else {
                 p[n] = p[n-1]*pow((1.0 + gamma[n]*(z[n] - z[n-1])/T[n-1]), -g*M/(gamma[n]*R));
             }
+            //std::cout << n << " " << std::setprecision(17) << p[n] << std::endl;
         }
     };
+    /*
+1 22632.063973462926+
+2 5474.8886696777781+
+3 868.01868475522883+
+4 110.90630555496605+
+5 66.938873118687368+
+6 4.634221541689616+
+
+    1 22632.063973462926
+    2 5474.888669677778
+    3 868.0186847552288
+    4 110.90630555496605
+    5 66.93887311868737
+    6 4.634221541689616
+    */
     double temperature(double H){
-        double zeta = gp_from_geom(H);
+        double zeta = H;//gp_from_geom(H);
         size_t n = 1;
         for(size_t k = 1; k < 7; ++k) {
             if (zeta >= z[k-1] and z[k] >= zeta){n = k;}
@@ -72,15 +74,15 @@ public:
         return T[n-1] + gamma[n]*(zeta - z[n-1]);
     }
     double pressure(double H){
-        double alt = gp_from_geom(H);
-        size_t n = 1;
+        double alt = H;//gp_from_geom(H);
+        size_t n = 6;
         for(size_t k = 1; k < 7; ++k) {
-            if (alt >= z[k-1] and z[k] >= alt){n = k;}
+            if (alt >= z[k-1] and z[k] > alt){n = k;}
         }
         if (gamma[n] == 0.0){
-            return p[n-1]*exp(-g*M*(alt - z[n-1])/(R*T[n-1]));
+            return p[n-1]*exp(-g*M*(alt - z[n-1])/R/T[n-1]);
         } else {
-            return p[n-1]*pow((1.0 + gamma[n]*(alt - z[n-1])/T[n-1]), -g*M/(gamma[n]*R));
+            return p[n-1]*pow((1.0 + gamma[n]*(alt - z[n-1])/T[n-1]), -g*M/gamma[n]/R);
         }
     }
 };
@@ -288,7 +290,7 @@ class Conductivities: private SMZ15, private TZ06, private ZT07{
 protected:
     static constexpr double sigma_0 = 5.0e-14;
     static constexpr double H_0 = 6.0;                      /// [km]
-    static constexpr double e_0 = 1.602176634E-19;          /// [C]
+    static constexpr double e_0 = 1.602176634e-19;          /// [C]
 public:
     ///z in kilometres
     static double exp_conductivity(double z){
@@ -419,7 +421,6 @@ public:
 };
 
 class ConcreteGECModel: public GECModel, private Conductivities, private Currents, private StdAtm {
-private:
 public:
     ConcreteGECModel(): GECModel() {
         ///This is the simplest parametrization
@@ -478,11 +479,13 @@ int main(){
         return 1;
     }
     Conductivities sigma;
-    //SMZ15 a;
-    for(double z = 0.0; z <= 70.1; ++z){
-        fout << z << "\t" << sigma.conductivity(z, 1.0, 0.0) << "\n";
+    StdAtm atm;
+    for(double z = 0.0; z <= 70.1; z = z+0.1){
+        fout << std::fixed  << std::setprecision(1) << z << "\t" << std::setprecision(16)<< atm.pressure(z) << "\n";
     }
     fout.close();
+
+    std::cout << std::setprecision(1) << 1.9 << "\t" << std::setprecision(15)<< atm.pressure(1.9) << "\t" << std::setprecision(15)<< atm.temperature(1.9) << "\n";
 
     return 0;
 }
