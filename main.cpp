@@ -47,14 +47,19 @@ public:
             } else {
                 p[n] = p[n-1]*pow((1.0 + gamma[n]*(z[n] - z[n-1])/T[n-1]), -g*M/(gamma[n]*R));
             }
-            //std::cout << n << " " << std::setprecision(17) << p[n] << std::endl;
         }
     };
+
     double temperature(double H){
         double zeta = H;//gp_from_geom(H);
-        size_t n = 1;
+        size_t n = 0;
         for(size_t k = 1; k < 7; ++k) {
-            if (zeta >= z[k-1] and z[k] >= zeta){n = k;}
+            if (zeta >= z[k-1] and z[k] > zeta){
+                n = k;
+                break;
+            } else {
+                n = 6;
+            }
         }
         return T[n-1] + gamma[n]*(zeta - z[n-1]);
     }
@@ -62,7 +67,12 @@ public:
         double alt = H;//gp_from_geom(H);
         size_t n = 6;
         for(size_t k = 1; k < 7; ++k) {
-            if (alt >= z[k-1] and z[k] > alt){n = k;}
+            if (alt >= z[k-1] and z[k] > alt){
+                n = k;
+                break;
+            } else {
+                n = 6;
+            }
         }
         if (gamma[n] == 0.0){
             return p[n-1]*exp(-g*M*(alt - z[n-1])/R/T[n-1]);
@@ -444,7 +454,7 @@ int main(){
     fout.close();*/
 
     /// Conductivity parametrization
-    /*std::ofstream fout("plots/cond.txt");
+    /*std::ofstream fout("plots/test2.txt");
     if(fout.is_open() == false){
         std::cout << "Impossible to find a file" << std::endl;
         return 1;
@@ -452,7 +462,7 @@ int main(){
     Conductivities sigma;
     for(double z = 0.0; z <= 70.1; z += 0.1){
         /// z is a geometric altitude
-        fout << z << "\t" << sigma.conductivity(z, 1.0, 0.0) << "\t"
+        fout << std::setprecision(3) << z << "\t" << std::setprecision(17) << sigma.conductivity(z, 1.0, 0.0) << "\t"
              << sigma.conductivity(z, 1.0, 0.5) << "\t"
              << sigma.conductivity(z, 1.0, 1.0) << "\n";
     }
@@ -465,12 +475,16 @@ int main(){
     }
     Conductivities sigma;
     StdAtm atm;
-    for(double z = 0.0; z <= 70.1; z = z+0.1){
-        fout << std::fixed  << std::setprecision(1) << z << "\t" << std::setprecision(16)<< atm.pressure(z) << "\n";
+    ZT07 mu;
+    TZ06 al;
+    SMZ15 ququ;
+    //std::cout << atm.temperature(70.0) << "\n";
+    for(double z = 0.0; z <= 70.1; z = z + 0.1){
+        fout /* << std::fixed*/ << std::setprecision(3) << z << "\t" << std::setprecision(17) << sigma.conductivity(z,1.5,1.69) << "\n";
     }
     fout.close();
 
-    std::cout << std::setprecision(1) << 1.9 << "\t" << std::setprecision(15)<< atm.pressure(1.9) << "\t" << std::setprecision(15)<< atm.temperature(1.9) << "\n";
+    //std::cout << std::setprecision(1) << 1.9 << "\t" << std::setprecision(15)<< atm.pressure(1.9) << "\t" << std::setprecision(15)<< atm.temperature(1.9) << "\n";
 
     return 0;
 }
