@@ -28,8 +28,13 @@ double integrate_trap(std::function<double(double)> f, double a, double b, size_
 
 double integrate_Simpson(std::function<double(double)> f, double a, double b, size_t n) {
     using namespace boost::numeric::ublas;
-    if (n % 2 != 1){
-        return NAN;
+    try {
+        if (n % 2 != 1){
+            throw n;
+        }
+    } catch (int i) {
+        std::cout << "integrate_Simpson has a wrong argument" << std::endl;
+        exit(-1);
     }
     double step = (b - a) / double (n);
     vector<double> func(n), help(n);
