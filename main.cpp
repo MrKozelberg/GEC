@@ -51,7 +51,7 @@ public:
     };
 
     double temperature(double H){
-        double zeta = H;//gp_from_geom(H);
+        double zeta = gp_from_geom(H);
         size_t n = 0;
         for(size_t k = 1; k < 7; ++k) {
             if (zeta >= z[k-1] and z[k] > zeta){
@@ -64,7 +64,7 @@ public:
         return T[n-1] + gamma[n]*(zeta - z[n-1]);
     }
     double pressure(double H){
-        double alt = H;//gp_from_geom(H);
+        double alt = gp_from_geom(H);
         size_t n = 6;
         for(size_t k = 1; k < 7; ++k) {
             if (alt >= z[k-1] and z[k] > alt){
@@ -415,7 +415,7 @@ public:
     double getH(){return H;}
 };
 
-class ConcreteGECModel: public GECModel, private Conductivities, private Currents, private StdAtm {
+class ConcreteGECModel: public GECModel, private Conductivities, private Currents {
 public:
     ConcreteGECModel(): GECModel() {
         ///This is the simplest parametrization
@@ -428,7 +428,7 @@ public:
 int main(){
 
     /// The simplest parametrization (2 columns, considered conductivity, step and zero currents)
-    /*ConcreteGECModel m;
+    ConcreteGECModel m;
     std::ofstream fout("plots/potential_2_columns.txt");
     if(fout.is_open() == false){
         std::cout << "Impossible to find a file" << std::endl;
@@ -438,7 +438,7 @@ int main(){
         fout << m.getAlt(i) << "\t" << m.getPot(0,i) << "\t" <<  m.getPot(1,i) << std::endl;
     }
     fout << 70 << "\t" << m.getIP() << "\t" << m.getIP() << std::endl;
-    fout.close();*/
+    fout.close();
 
     /// US Standard Atmosphere 1976
     /// This part of programme works correctly
@@ -468,7 +468,7 @@ int main(){
     }
     fout.close();*/
 
-    std::ofstream fout("plots/test2.txt");
+    /*std::ofstream fout("plots/test2.txt");
     if(fout.is_open() == false){
         std::cout << "Impossible to find a file" << std::endl;
         return 1;
@@ -480,11 +480,10 @@ int main(){
     SMZ15 ququ;
     //std::cout << atm.temperature(70.0) << "\n";
     for(double z = 0.0; z <= 70.1; z = z + 0.1){
-        fout /* << std::fixed*/ << std::setprecision(3) << z << "\t" << std::setprecision(17) << sigma.conductivity(z,1.5,1.69) << "\n";
+        fout // << std::fixed
+    << std::setprecision(3) << z << "\t" << std::setprecision(17) << sigma.conductivity(z,1.5,1.69) << "\n";
     }
-    fout.close();
-
-    //std::cout << std::setprecision(1) << 1.9 << "\t" << std::setprecision(15)<< atm.pressure(1.9) << "\t" << std::setprecision(15)<< atm.temperature(1.9) << "\n";
+    fout.close();*/
 
     return 0;
 }
