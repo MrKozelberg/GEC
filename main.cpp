@@ -316,7 +316,7 @@ public:
         return 0.0;
     }
     static double simple_geo_current(double lat, double z){
-        if(lat <= 20){
+        if(std::abs(lat) <= 10){
             return step_current(z);
         } else return zero_current(z);
     }
@@ -432,48 +432,20 @@ public:
 
 class Geomodel: public GECModel, private Conductivities, private Currents {
 private:
-    double earth_radius = 6356.766;
+    double earth_radius2 = 40408473.9788; //km or m?
 public:
-    unsigned N, M;
-    Geomodel(double lat, double lon): GECModel() {
-        N = std::ceil(180 / lat);
-        M = std::ceil(180 / lon);
+    Geomodel(double delta_lat, double delta_lon): GECModel(){
+        unsigned N = std::ceil(180.0 / delta_lat);
+        unsigned M = std::ceil(360.0 / delta_lon);
         model.reserve(N*M);
-        if(N % 2 == 0 && M % 2 == 0){
-            for(size_t n = 1; n <= N / 2; n++){
-                for(size_t m = 1; m <= M / 2; m++){
-                    model.push_back({lon * M_PI / 180 * earth_radius * earth_radius
-                                    * 2.0 * sin(m * lat * M_PI / 180) * sin(lat / 2.0 * M_PI / 180),
-                                    [this, lat, m](double z){return Conductivities::conductivity(z, m * lat, 1.0);},
-                                    [lat, m](double z){return simple_geo_current(m * lat, z);}});
-                }
-            }
-        } else if(N % 2 == 0){
-            for(size_t n = 1; n <= N / 2; n++){
-                for(size_t m = 0; m <= (M - 1) / 2; m++){
-                    model.push_back({lon * M_PI / 180 * earth_radius * earth_radius
-                                    * 2.0 * sin(m * lat * M_PI / 180) * sin(lat / 2.0 * M_PI / 180),
-                                    [this, lat, m](double z){return Conductivities::conductivity(z, m * lat, 1.0);},
-                                    [lat, m](double z){return simple_geo_current(m * lat, z);}});
-                }
-            }
-        } else if(M % 2 == 0){
-            for(size_t n = 0; n <= (N - 1) / 2; n++){
-                for(size_t m = 0; m <= M / 2; m++){
-                    model.push_back({lon * M_PI / 180 * earth_radius * earth_radius
-                                    * 2.0 * sin(m * lat * M_PI / 180) * sin(lat / 2.0 * M_PI / 180),
-                                    [this, lat, m](double z){return Conductivities::conductivity(z, m * lat, 1.0);},
-                                    [lat, m](double z){return simple_geo_current(m * lat, z);}});
-                }
-            }
-        } else{
-            for(size_t n = 0; n <= (N - 1) / 2; n++){
-                for(size_t m = 0; m <= (M - 1) / 2; m++){
-                    model.push_back({lon * M_PI / 180 * earth_radius * earth_radius
-                                    * 2.0 * sin(m * lat * M_PI / 180) * sin(lat / 2.0 * M_PI / 180),
-                                    [this, lat, m](double z){return Conductivities::conductivity(z, m * lat, 1.0);},
-                                    [lat, m](double z){return simple_geo_current(m * lat, z);}});
-                }
+        ///может быть проблема на концах
+        for(unsigned n = 0; n < N; ++n){
+            double lat_n = -90.0 + delta_lat * (0.5 + n);
+            for(unsigned m = 0; m < M; ++m){
+                model.push_back({delta_lon * M_PI / 180.0 * earth_radius2
+                                 * 2.0 * sin(M_PI / 180 * lat_n) * sin(M_PI / 180 * delta_lat),
+                                [this, lat_n](double z){return Conductivities::conductivity(z, lat_n, 1.0);},
+                                [lat_n](double z){return Currents::simple_geo_current(lat_n, z);}});
             }
         }
     }
@@ -539,7 +511,7 @@ int main(){
     }
     fout.close();*/
 
-    Geomodel m(10, 10);
+    Geomodel m(10, 180);
     std::cout << m.getIP() << std::endl;
 
     return 0;
