@@ -315,6 +315,11 @@ public:
     static double zero_current(double z){
         return 0.0;
     }
+    static double simple_geo_current(double lat, double z){
+        if(lat <= 20){
+            return step_current(z);
+        } else return zero_current(z);
+    }
 };
 
 /// It is the central class, here you can find any parameters of the model
@@ -415,9 +420,9 @@ public:
     double getH(){return H;}
 };
 
-class ConcreteGECModel: public GECModel, private Conductivities, private Currents {
+class SimpliestGECModel: public GECModel, private Conductivities, private Currents {
 public:
-    ConcreteGECModel(): GECModel() {
+    SimpliestGECModel(): GECModel() {
         ///This is the simplest parametrization
         model.reserve(2);
         model.push_back({1.0, [this](double z){return Conductivities::conductivity(z, 1.2, 1.0);}, Currents::step_current});
@@ -425,10 +430,59 @@ public:
     }
 };
 
+class Geomodel: public GECModel, private Conductivities, private Currents {
+private:
+    double earth_radius = 6356.766;
+public:
+    unsigned N, M;
+    Geomodel(double lat, double lon): GECModel() {
+        N = std::ceil(180 / lat);
+        M = std::ceil(180 / lon);
+        model.reserve(N*M);
+        if(N % 2 == 0 && M % 2 == 0){
+            for(size_t n = 1; n <= N / 2; n++){
+                for(size_t m = 1; m <= M / 2; m++){
+                    model.push_back({lon * M_PI / 180 * earth_radius * earth_radius
+                                    * 2.0 * sin(m * lat * M_PI / 180) * sin(lat / 2.0 * M_PI / 180),
+                                    [this, lat, m](double z){return Conductivities::conductivity(z, m * lat, 1.0);},
+                                    [lat, m](double z){return simple_geo_current(m * lat, z);}});
+                }
+            }
+        } else if(N % 2 == 0){
+            for(size_t n = 1; n <= N / 2; n++){
+                for(size_t m = 0; m <= (M - 1) / 2; m++){
+                    model.push_back({lon * M_PI / 180 * earth_radius * earth_radius
+                                    * 2.0 * sin(m * lat * M_PI / 180) * sin(lat / 2.0 * M_PI / 180),
+                                    [this, lat, m](double z){return Conductivities::conductivity(z, m * lat, 1.0);},
+                                    [lat, m](double z){return simple_geo_current(m * lat, z);}});
+                }
+            }
+        } else if(M % 2 == 0){
+            for(size_t n = 0; n <= (N - 1) / 2; n++){
+                for(size_t m = 0; m <= M / 2; m++){
+                    model.push_back({lon * M_PI / 180 * earth_radius * earth_radius
+                                    * 2.0 * sin(m * lat * M_PI / 180) * sin(lat / 2.0 * M_PI / 180),
+                                    [this, lat, m](double z){return Conductivities::conductivity(z, m * lat, 1.0);},
+                                    [lat, m](double z){return simple_geo_current(m * lat, z);}});
+                }
+            }
+        } else{
+            for(size_t n = 0; n <= (N - 1) / 2; n++){
+                for(size_t m = 0; m <= (M - 1) / 2; m++){
+                    model.push_back({lon * M_PI / 180 * earth_radius * earth_radius
+                                    * 2.0 * sin(m * lat * M_PI / 180) * sin(lat / 2.0 * M_PI / 180),
+                                    [this, lat, m](double z){return Conductivities::conductivity(z, m * lat, 1.0);},
+                                    [lat, m](double z){return simple_geo_current(m * lat, z);}});
+                }
+            }
+        }
+    }
+};
+
 int main(){
 
     /// The simplest parametrization (2 columns, considered conductivity, step and zero currents)
-    ConcreteGECModel m;
+    /*SimpliestGECModel m;
     std::ofstream fout("plots/potential_2_columns.txt");
     if(fout.is_open() == false){
         std::cout << "Impossible to find a file" << std::endl;
@@ -438,7 +492,7 @@ int main(){
         fout << m.getAlt(i) << "\t" << m.getPot(0,i) << "\t" <<  m.getPot(1,i) << std::endl;
     }
     fout << 70 << "\t" << m.getIP() << "\t" << m.getIP() << std::endl;
-    fout.close();
+    fout.close();*/
 
     /// US Standard Atmosphere 1976
     /// This part of programme works correctly
@@ -484,6 +538,9 @@ int main(){
     << std::setprecision(3) << z << "\t" << std::setprecision(17) << sigma.conductivity(z,1.5,1.69) << "\n";
     }
     fout.close();*/
+
+    Geomodel m(10, 10);
+    std::cout << m.getIP() << std::endl;
 
     return 0;
 }
