@@ -72,12 +72,12 @@ public:
 class GECModel {
 protected:
     static constexpr double H = 70.0; ///in km
-    static constexpr unsigned int_points = 10'001;
-    static constexpr unsigned int_pot_points = 9;
+    static constexpr double pot_step = 1.0; ///in km
+    static constexpr unsigned int_points = 819;
+    static constexpr unsigned int_pot_points = 19;
     double V = 0.0;
     bool isVCalculated = false;
     std::vector<Column> model;
-    static constexpr double pot_step = 1.0; ///in km
 
     /// This is a function that calculates an ionosphere potention
     double calc_ip()
@@ -85,7 +85,7 @@ protected:
         std::vector<double> area_by_int(model.size());
         std::vector<double> int_of_cur_by_cond(model.size());
         for (unsigned i = 0; i < model.size(); ++i) {
-            area_by_int[i] = model[i].area / integrate_Simpson([this, i](double z) { return 1 / model[i].conductivity(z); }, 0.0, H, int_points);
+            area_by_int[i] = model[i].area / integrate_Simpson([this, i](double z) { return 1.0 / model[i].conductivity(z); }, 0.0, H, int_points);
             int_of_cur_by_cond[i] = integrate_Simpson(
                 [this, i](double z) { return model[i].current(z) / model[i].conductivity(z); },
                 0.0, H, int_points);
@@ -101,7 +101,7 @@ protected:
     /// This is a function that calculates the potention on the i * pot_step
     std::vector<double> calc_pot(unsigned column_num)
     {
-        unsigned N = ceil(H / pot_step);
+        unsigned N = ceil(H / pot_step) + 1;
         std::vector<double> vec(N);
         double I1 = 0.0, I2 = 0.0, C1, C2;
         C1 = integrate_Simpson([this, column_num](double z) { return 1.0 / model[column_num].conductivity(z); }, 0.0, H, int_points);
@@ -138,7 +138,7 @@ public:
     }
     void getPot(std::string filename, unsigned column_num)
     {
-        unsigned N = ceil(H / pot_step);
+        unsigned N = ceil(H / pot_step) + 1;
         std::vector<double> vec;
         vec = calc_pot(column_num);
         std::ofstream fout(filename);
@@ -149,7 +149,6 @@ public:
         for (unsigned n = 1; n < N; ++n) {
             fout << n * pot_step << "\t" << vec[n] << std::endl;
         }
-        fout << 70 << "\t" << getIP() << std::endl;
         fout.close();
     }
 };
@@ -166,17 +165,19 @@ public:
     }
 };
 
-class Geomodel : public GECModel, private Conductivities, private Currents {
+class GeoModel : public GECModel, private Conductivities, private Currents {
 private:
-    double earth_radius2 = 40408473.9788; //km or m?
+    double earth_radius2 = 40408473.9788; //km
 public:
-    Geomodel(double delta_lat, double delta_lon)
-        : GECModel()
+    GeoModel()
+    {
+    }
+    GeoModel(double delta_lat, double delta_lon)
     {
         unsigned N = std::ceil(180.0 / delta_lat);
         unsigned M = std::ceil(360.0 / delta_lon);
         model.reserve(N * M);
-        ///может быть проблема на концах
+        ///Maybe there are bugs on ends
         for (unsigned n = 0; n < N; ++n) {
             double lat_n = -90.0 + delta_lat * (0.5 + n);
             for (unsigned m = 0; m < M; ++m) {
@@ -191,23 +192,8 @@ public:
 
 int main()
 {
-    double Int;
-    unsigned int start_time = clock();
-
-    for (double z = 6.0; z < 11.0; z += 1.0) {
-        Int = integrate_Simpson(
-            [](double z) {
-                Conductivities s;
-                Currents c;
-                return c.step_current(z) / s.conductivity(z, 1.0, 1.0);
-            },
-            z - 1.0, z, 11);
-
-        std::cout << z << "\t" << Int << std::endl;
-    }
-
-    unsigned int end_time = clock();
-    std::cout << (end_time - start_time) / 1'000.0 << "\tsec" << std::endl;
-
+    GeoModel m(5.0, 5.0);
+    //m.getPot("plots/potential_2_columns.txt", 1);
+    std::cout << "Ionosphere potential is " << m.getIP() << "\t[kV]" << std::endl;
     return 0;
 }
