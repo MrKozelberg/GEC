@@ -192,8 +192,8 @@ public:
 
 int main()
 {
-    GeoModel m(5.0, 5.0);
-    //m.getPot("plots/potential_2_columns.txt", 1);
+    SimpliestGECModel m;
+    m.getPot("plots/potential_2_columns.txt", 0);
     std::cout << "Ionosphere potential is " << m.getIP() << "\t[kV]" << std::endl;
     return 0;
 }
