@@ -22,11 +22,11 @@ double gp_from_geom(double H)
 ///temperature and pressure can be calculated
 class StdAtm {
 private:
-    double T_0 = 288.15;
-    double p_0 = 1.01325e5;
-    double R = 8.31432;
-    double M = 28.9644;
-    double g = 9.80665;
+    constexpr static double T_0 = 288.15;
+    constexpr static double p_0 = 1.01325e5;
+    constexpr static double R = 8.31432;
+    constexpr static double M = 28.9644;
+    constexpr static double g = 9.80665;
     constexpr static double z[7] = { 0.0, 11.0, 20.0, 32.0, 47.0, 51.0, 70.0 };
     double T[7], p[7];
     constexpr static double gamma[7] = { 0.0, -6.5, 0.0, 1.0, 2.8, 0.0, -2.8 };
