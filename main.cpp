@@ -73,8 +73,8 @@ class GECModel {
 protected:
     static constexpr double H = 70.0; ///in km
     static constexpr double pot_step = 1.0; ///in km
-    static constexpr unsigned int_points = 819;
-    static constexpr unsigned int_pot_points = 19;
+    static constexpr unsigned int_points = 701;
+    static constexpr unsigned int_pot_points = 11;
     static constexpr size_t N = H / pot_step +1;
     double V = 0.0;
     bool isVCalculated = false;
@@ -163,13 +163,11 @@ public:
     }
 };
 
-/*class GeoModel : public GECModel, private Conductivities, private Currents {
+class GeoModel : public GECModel, private Conductivities, private Currents {
 private:
     double earth_radius2 = 40408473.9788; //km
 public:
-    GeoModel()
-    {
-    }
+    GeoModel() {};
     GeoModel(double delta_lat, double delta_lon)
     {
         size_t N = std::ceil(180.0 / delta_lat);
@@ -186,12 +184,12 @@ public:
             }
         }
     }
-};*/
+};
 
 int main()
 {
     SimpliestGECModel m;
-    m.getPot("plots/potential_2_columns.txt", 0);
+    m.getPot("plots/potential_2_columns.txt", 1);
     std::cout << "Ionosphere potential is " << m.getIP() << "\t[kV]" << std::endl;
     return 0;
 }
