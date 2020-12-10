@@ -15,6 +15,8 @@
 /// COMPUTATION OF THE ION-PAIR PRODUCTION RATE ASSOCIATED WITH GALACTIC COSMIC RAYS
 class SMZ15 : private StdAtm {
 private:
+    double xi_old = 0.0;
+    double lymbda_old = 0.0;
     double L(double lymbda, double lymbda_0)
     {
         if (std::abs(lymbda) < lymbda_0) {
@@ -47,6 +49,8 @@ private:
     std::array<double, 6> d = { 0.1E6, 2.5E6, 83.0E6, 225.0E6, 236.0E6, 243.0E6 }; ///< [m^(-3)*s^(-1)]
     std::array<double, 6> g = { 0.0, 0.0, 4.0, 6.0, 5.0, 0.0 };
     std::array<double, 6> h = { 1.7, 1.7, 3.9, 3.2, 3.4, 4.0 };
+    std::array<double, 6> K_, deltaH_, U_, deltaU_, Z_, Q_;
+    std::array<double, 5> P_;
     std::array<double, 6> K(double xi)
     {
         std::array<double, 6> vec;
@@ -55,8 +59,6 @@ private:
         }
         return vec;
     }
-    std::array<double, 6> K_ = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-    bool isKcalc = false;
     std::array<double, 6> deltaH(double xi)
     {
         std::array<double, 6> vec;
@@ -82,58 +84,44 @@ private:
         }
         return vec;
     }
-    std::array<double, 6> Z(double lymbda, double xi)
+    std::array<double, 6> Z(double lymbda)
     {
         std::array<double, 6> vec;
         vec[0] = 0.0;
         for (size_t i = 1; i < 6; ++i) {
-            vec[i] = H[i] + deltaH(xi)[i] * pow(sin(L(lymbda, getK(xi)[i])) / sin(getK(xi)[i]), g[i]);
+            vec[i] = H[i] + deltaH_[i] * pow(sin(L(lymbda, K_[i])) / sin(K_[i]), g[i]);
         }
         return vec;
     }
-    std::array<double, 6> Q(double lymbda, double xi)
+    std::array<double, 6> Q(double lymbda)
     {
         std::array<double, 6> vec;
         for (size_t i = 0; i < 6; ++i) {
-            vec[i] = U(xi)[i] + deltaU(xi)[i] * pow(sin(L(lymbda, getK(xi)[i])) / sin(getK(xi)[i]), h[i]);
+            vec[i] = U_[i] + deltaU_[i] * pow(sin(L(lymbda, K_[i])) / sin(K_[i]), h[i]);
         }
         return vec;
     }
-    std::array<double, 5> P(double lymbda, double xi)
+    std::array<double, 5> P()
     {
         std::array<double, 5> vec;
         vec[0] = 0.0;
         vec[3] = 0.0;
-        vec[1] = Q(lymbda, xi)[1] * log(Q(lymbda, xi)[1] / Q(lymbda, xi)[0]) / Z(lymbda, xi)[1];
-        vec[2] = 2.0 * (Q(lymbda, xi)[2] - Q(lymbda, xi)[1]) / (Z(lymbda, xi)[2] - Z(lymbda, xi)[1])
-            - vec[1];
-        if (Z(lymbda, xi)[4] != Z(lymbda, xi)[5]) {
-            vec[4] = 3.0 * (Q(lymbda, xi)[4] - Q(lymbda, xi)[5]) / (Z(lymbda, xi)[5] - Z(lymbda, xi)[4]);
-        } else
+        vec[1] = Q_[1] * log(Q_[1] / Q_[0]) / Z_[1];
+        vec[2] = 2.0 * (Q_[2] - Q_[1]) / (Z_[2] - Z_[1]) - vec[1];
+        if (Z_[4] != Z_[5]) {
+            vec[4] = 3.0 * (Q_[4] - Q_[5]) / (Z_[5] - Z_[4]);
+        } else {
             vec[4] = 0.0;
+        }
         return vec;
     }
-    double A_Q(double lymbda, double xi)
+    double A_Q, B_Q, C_Q;
+    double Q_STP(double z)
     {
-        return ((Q(lymbda, xi)[2] - Q(lymbda, xi)[1]) - P(lymbda, xi)[1] * (Z(lymbda, xi)[2] - Z(lymbda, xi)[1])) / pow((Z(lymbda, xi)[2] - Z(lymbda, xi)[1]), 2.0);
-    }
-    double B_Q(double lymbda, double xi)
-    {
-        return Q(lymbda, xi)[1] - pow(P(lymbda, xi)[1] * (Z(lymbda, xi)[2] - Z(lymbda, xi)[1]), 2.0) / (4.0 * ((Q(lymbda, xi)[2] - Q(lymbda, xi)[1]) - P(lymbda, xi)[1] * (Z(lymbda, xi)[2] - Z(lymbda, xi)[1])));
-    }
-    double C_Q(double lymbda, double xi)
-    {
-        return (2.0 * (Q(lymbda, xi)[2] - Q(lymbda, xi)[1]) * Z(lymbda, xi)[1] - P(lymbda, xi)[1] * (pow(Z(lymbda, xi)[2], 2.0) - pow(Z(lymbda, xi)[1], 2.0))) / (2.0 * ((Q(lymbda, xi)[2] - Q(lymbda, xi)[1]) - P(lymbda, xi)[1] * (Z(lymbda, xi)[2] - Z(lymbda, xi)[1])));
-    }
-    double Q_STP(double z, double lymbda, double xi)
-    {
-        std::array<double, 6> Z_ = Z(lymbda, xi), Q_ = Q(lymbda, xi);
-        std::array<double, 5> P_ = P(lymbda, xi);
-        double A_Q_ = A_Q(lymbda, xi), B_Q_ = B_Q(lymbda, xi), C_Q_ = C_Q(lymbda, xi);
         if (z < Z_[1]) {
             return Q_[0] * pow(Q_[1] / Q_[0], z / Z_[1]);
         } else if (z < Z_[2]) {
-            return B_Q_ + A_Q_ * pow(z - C_Q_, 2.0);
+            return B_Q + A_Q * pow(z - C_Q, 2.0);
         } else if (z < Z_[3]) {
             return Q_[3] - (Q_[3] - Q_[2]) * pow((Z_[3] - z) / (Z_[3] - Z_[2]), P_[2] * (Z_[3] - Z_[2]) / (Q_[3] - Q_[2]));
         } else if (z < Z_[4]) {
@@ -146,7 +134,6 @@ private:
     }
 
 public:
-    SMZ15() {};
     ///ion-pair production rate
     ///z is a geometrical altitude [km] (LOOK DEF ABOVE)
     ///p [Pa] | T [K] | lymbda [deg] | q, Q [m^(-3)*s^(-1)] | xi = (sin(pi*t))^2
@@ -154,17 +141,38 @@ public:
     /// xi is confined between 0 and 1; xi = 0 corresponds to solar minima, xi = 1 corresponds to solar maxima
     /// returns the ion-pair production rate q in m^(-3) s^(-1)
     /// uses the parameterisation of Slyunyaev et al. (2015)
+    SMZ15() {
+        K_ = K(xi_old);
+        deltaH_ = deltaH(xi_old);
+        U_ = U(xi_old);
+        deltaU_ = deltaU(xi_old);
+        Z_ = Z(lymbda_old);
+        Q_ = Q(lymbda_old);
+        P_ = P();
+        A_Q = ((Q_[2] - Q_[1]) - P_[1] * (Z_[2] - Z_[1])) / pow(Z_[2] - Z_[1], 2.0);
+        B_Q = Q_[1] - pow(P_[1] * (Z_[2] - Z_[1]), 2.0) / (4.0 * ((Q_[2] - Q_[1]) - P_[1] * (Z_[2] - Z_[1])));
+        C_Q = (2.0 * (Q_[2] - Q_[1]) * Z_[1] - P_[1] * (pow(Z_[2], 2.0) - pow(Z_[1], 2.0))) / (2.0 * ((Q_[2]
+                    - Q_[1]) - P_[1] * (Z_[2] - Z_[1])));
+    };
     double q(double z, double lymbda, double xi)
     {
-        return Q_STP(z, lymbda, xi) * StdAtm::pressure(z) * T_q / (p_q * StdAtm::temperature(z));
-    }
-    std::array<double, 6> getK(double xi)
-    {
-        if(not isKcalc) {
+        if (xi != xi_old || lymbda != lymbda_old){
+            /// There we can see the situation where the order is vital
             K_ = K(xi);
-            isKcalc = true;
+            deltaH_ = deltaH(xi);
+            U_ = U(xi);
+            deltaU_ = deltaU(xi);
+            Z_ = Z(lymbda);
+            Q_ = Q(lymbda);
+            P_ = P();
+            A_Q = ((Q_[2] - Q_[1]) - P_[1] * (Z_[2] - Z_[1])) / pow(Z_[2] - Z_[1], 2.0);
+            B_Q = Q_[1] - pow(P_[1] * (Z_[2] - Z_[1]), 2.0) / (4.0 * ((Q_[2] - Q_[1]) - P_[1] * (Z_[2] - Z_[1])));
+            C_Q = (2.0 * (Q_[2] - Q_[1]) * Z_[1] - P_[1] * (pow(Z_[2], 2.0) - pow(Z_[1], 2.0))) / (2.0 * ((Q_[2]
+                        - Q_[1]) - P_[1] * (Z_[2] - Z_[1])));
+            xi_old = xi;
+            lymbda_old = lymbda;
         }
-        return K_;
+        return Q_STP(z) * StdAtm::pressure(z) * T_q / (p_q * StdAtm::temperature(z));
     }
 };
 
