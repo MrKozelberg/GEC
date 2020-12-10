@@ -75,6 +75,7 @@ protected:
     static constexpr double pot_step = 1.0; ///in km
     static constexpr unsigned int_points = 819;
     static constexpr unsigned int_pot_points = 19;
+    static constexpr size_t N = H / pot_step +1;
     double V = 0.0;
     bool isVCalculated = false;
     std::vector<Column> model;
@@ -99,14 +100,13 @@ protected:
     }
 
     /// This is a function that calculates the potention on the i * pot_step
-    std::vector<double> calc_pot(unsigned column_num)
+    std::array<double, N> calc_pot(unsigned column_num)
     {
-        unsigned N = ceil(H / pot_step) + 1;
-        std::vector<double> vec(N);
+        std::array<double, N> vec;
         double I1 = 0.0, I2 = 0.0, C1, C2;
         C1 = integrate_Simpson([this, column_num](double z) { return 1.0 / model[column_num].conductivity(z); }, 0.0, H, int_points);
         C2 = integrate_Simpson([this, column_num](double z) { return model[column_num].current(z) / model[column_num].conductivity(z); }, 0.0, H, int_points);
-        std::vector<double> h(N);
+        std::array<double, N> h;
         for (unsigned n = 0; n < N; ++n) {
             h[n] = n * pot_step;
         }
@@ -138,9 +138,7 @@ public:
     }
     void getPot(std::string filename, unsigned column_num)
     {
-        unsigned N = ceil(H / pot_step) + 1;
-        std::vector<double> vec;
-        vec = calc_pot(column_num);
+        std::array<double, N> vec = calc_pot(column_num);
         std::ofstream fout(filename);
         if (fout.is_open() == false) {
             std::cout << "Impossible to find a file" << std::endl;
@@ -165,7 +163,7 @@ public:
     }
 };
 
-class GeoModel : public GECModel, private Conductivities, private Currents {
+/*class GeoModel : public GECModel, private Conductivities, private Currents {
 private:
     double earth_radius2 = 40408473.9788; //km
 public:
@@ -174,8 +172,8 @@ public:
     }
     GeoModel(double delta_lat, double delta_lon)
     {
-        unsigned N = std::ceil(180.0 / delta_lat);
-        unsigned M = std::ceil(360.0 / delta_lon);
+        size_t N = std::ceil(180.0 / delta_lat);
+        size_t M = std::ceil(360.0 / delta_lon);
         model.reserve(N * M);
         ///Maybe there are bugs on ends
         for (unsigned n = 0; n < N; ++n) {
@@ -188,7 +186,7 @@ public:
             }
         }
     }
-};
+};*/
 
 int main()
 {

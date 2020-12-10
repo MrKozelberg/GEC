@@ -24,82 +24,84 @@ private:
         }
     }
     /// constants
-    static constexpr double T_q = 297.15; ///[K]
-    static constexpr double p_q = 98658.55232; ///[Pa]
-    std::vector<double> A = { 49.0 * M_PI / 180.0,
+    static constexpr double T_q = 297.15; ///< [K]
+    static constexpr double p_q = 98658.55232; ///< [Pa]
+    std::array<double, 6> A = { 49.0 * M_PI / 180.0,
         49.0 * M_PI / 180.0,
         57.0 * M_PI / 180.0,
         63.0 * M_PI / 180.0,
         63.0 * M_PI / 180.0,
         63.0 * M_PI / 180.0 };
-    std::vector<double> a = { 8.0 * M_PI / 180.0,
+    std::array<double, 6> a = { 8.0 * M_PI / 180.0,
         8.0 * M_PI / 180.0,
         8.0 * M_PI / 180.0,
         10.0 * M_PI / 180.0,
         10.0 * M_PI / 180.0,
         9.0 * M_PI / 180.0 };
-    std::vector<double> H = { 0.0, 5.0, 10.0, 16.0, 23.0, 37.0 }; ///[km]
-    std::vector<double> B = { 0.0, 0.0, 5.0, 21.0, 14.0, 0.0 }; ///[km]
-    std::vector<double> b = { 0.0, 0.0, 0.0, 14.0, 9.0, 0.0 }; ///[km]
-    std::vector<double> C = { 1.4E6, 15.0E6, 64.0E6, 93.0E6, 74.0E6, 45.0E6 }; ///[m^(-3)*s^(-1)]
-    std::vector<double> c = { 0.1E6, 0.5E6, 2.0E6, 5.0E6, 3.0E6, 2.0E6 }; ///[m^(-3)*s^(-1)]
-    std::vector<double> D = { 0.8E6, 10.0E6, 236.0E6, 402.0E6, 421.0E6, 450.0E6 }; ///[m^(-3)*s^(-1)]
-    std::vector<double> d = { 0.1E6, 2.5E6, 83.0E6, 225.0E6, 236.0E6, 243.0E6 }; ///[m^(-3)*s^(-1)]
-    std::vector<double> g = { 0.0, 0.0, 4.0, 6.0, 5.0, 0.0 };
-    std::vector<double> h = { 1.7, 1.7, 3.9, 3.2, 3.4, 4.0 };
-    std::vector<double> K(double xi)
+    std::array<double, 6> H = { 0.0, 5.0, 10.0, 16.0, 23.0, 37.0 }; ///< [km]
+    std::array<double, 6> B = { 0.0, 0.0, 5.0, 21.0, 14.0, 0.0 }; ///< [km]
+    std::array<double, 6> b = { 0.0, 0.0, 0.0, 14.0, 9.0, 0.0 }; ///< [km]
+    std::array<double, 6> C = { 1.4E6, 15.0E6, 64.0E6, 93.0E6, 74.0E6, 45.0E6 }; ///< [m^(-3)*s^(-1)]
+    std::array<double, 6> c = { 0.1E6, 0.5E6, 2.0E6, 5.0E6, 3.0E6, 2.0E6 }; ///< [m^(-3)*s^(-1)]
+    std::array<double, 6> D = { 0.8E6, 10.0E6, 236.0E6, 402.0E6, 421.0E6, 450.0E6 }; ///< [m^(-3)*s^(-1)]
+    std::array<double, 6> d = { 0.1E6, 2.5E6, 83.0E6, 225.0E6, 236.0E6, 243.0E6 }; ///< [m^(-3)*s^(-1)]
+    std::array<double, 6> g = { 0.0, 0.0, 4.0, 6.0, 5.0, 0.0 };
+    std::array<double, 6> h = { 1.7, 1.7, 3.9, 3.2, 3.4, 4.0 };
+    std::array<double, 6> K(double xi)
     {
-        std::vector<double> vec(6);
+        std::array<double, 6> vec;
         for (size_t i = 0; i < 6; ++i) {
             vec[i] = A[i] - a[i] * xi;
         }
         return vec;
     }
-    std::vector<double> deltaH(double xi)
+    std::array<double, 6> K_ = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+    bool isKcalc = false;
+    std::array<double, 6> deltaH(double xi)
     {
-        std::vector<double> vec(6);
+        std::array<double, 6> vec;
         vec[0] = 0.0;
         for (size_t i = 1; i < 6; ++i) {
             vec[i] = B[i] - b[i] * xi;
         }
         return vec;
     }
-    std::vector<double> U(double xi)
+    std::array<double, 6> U(double xi)
     {
-        std::vector<double> vec(6);
+        std::array<double, 6> vec;
         for (size_t i = 0; i < 6; ++i) {
             vec[i] = C[i] - c[i] * xi;
         }
         return vec;
     }
-    std::vector<double> deltaU(double xi)
+    std::array<double, 6> deltaU(double xi)
     {
-        std::vector<double> vec(6);
+        std::array<double, 6> vec;
         for (size_t i = 0; i < 6; ++i) {
             vec[i] = D[i] - d[i] * xi;
         }
         return vec;
     }
-    std::vector<double> Z(double lymbda, double xi)
+    std::array<double, 6> Z(double lymbda, double xi)
     {
-        std::vector<double> vec(6);
+        std::array<double, 6> vec;
         vec[0] = 0.0;
         for (size_t i = 1; i < 6; ++i) {
-            vec[i] = H[i] + deltaH(xi)[i] * pow(sin(L(lymbda, K(xi)[i])) / sin(K(xi)[i]), g[i]);
+            vec[i] = H[i] + deltaH(xi)[i] * pow(sin(L(lymbda, getK(xi)[i])) / sin(getK(xi)[i]), g[i]);
         }
         return vec;
     }
-    std::vector<double> Q(double lymbda, double xi)
+    std::array<double, 6> Q(double lymbda, double xi)
     {
-        std::vector<double> vec(6);
+        std::array<double, 6> vec;
         for (size_t i = 0; i < 6; ++i) {
-            vec[i] = U(xi)[i] + deltaU(xi)[i] * pow(sin(L(lymbda, K(xi)[i])) / sin(K(xi)[i]), h[i]);
+            vec[i] = U(xi)[i] + deltaU(xi)[i] * pow(sin(L(lymbda, getK(xi)[i])) / sin(getK(xi)[i]), h[i]);
         }
         return vec;
     }
-    std::vector<double> P(double lymbda, double xi)
+    std::array<double, 5> P(double lymbda, double xi)
     {
-        std::vector<double> vec(5);
+        std::array<double, 5> vec;
         vec[0] = 0.0;
         vec[3] = 0.0;
         vec[1] = Q(lymbda, xi)[1] * log(Q(lymbda, xi)[1] / Q(lymbda, xi)[0]) / Z(lymbda, xi)[1];
@@ -125,7 +127,8 @@ private:
     }
     double Q_STP(double z, double lymbda, double xi)
     {
-        std::vector<double> Z_ = Z(lymbda, xi), P_ = P(lymbda, xi), Q_ = Q(lymbda, xi);
+        std::array<double, 6> Z_ = Z(lymbda, xi), Q_ = Q(lymbda, xi);
+        std::array<double, 5> P_ = P(lymbda, xi);
         double A_Q_ = A_Q(lymbda, xi), B_Q_ = B_Q(lymbda, xi), C_Q_ = C_Q(lymbda, xi);
         if (z < Z_[1]) {
             return Q_[0] * pow(Q_[1] / Q_[0], z / Z_[1]);
@@ -155,6 +158,14 @@ public:
     {
         return Q_STP(z, lymbda, xi) * StdAtm::pressure(z) * T_q / (p_q * StdAtm::temperature(z));
     }
+    std::array<double, 6> getK(double xi)
+    {
+        if(not isKcalc) {
+            K_ = K(xi);
+            isKcalc = true;
+        }
+        return K_;
+    }
 };
 
 /// COMPUTATION OF THE ION-ION RECOMBINATION COEFFICIENT [TZ 06]
@@ -163,12 +174,12 @@ private:
     /// constants
     static constexpr double A = 6.0E-14; ///[m^3 / s]
     static constexpr double a = 0.5;
-    std::vector<double> B = { 0.0, 1.702E-12, 1.035E-12, 6.471E-12 }; ///[m^3 / s]
+    std::array<double, 4> B = { 0.0, 1.702E-12, 1.035E-12, 6.471E-12 }; ///[m^3 / s]
     static constexpr double T_0 = 300.0; ///[K]
     static constexpr double N_0 = 2.69E25; ///[m^(-3)]
-    std::vector<double> b = { 0.0, -1.984, 4.374, -0.191 };
-    std::vector<double> Z = { 0.0, 10.0, 20.0 }; ///[km]
-    std::vector<double> c = { 0.0, -0.451, 0.769, 0.901 };
+    std::array<double, 4> b = { 0.0, -1.984, 4.374, -0.191 };
+    std::array<double, 3> Z = { 0.0, 10.0, 20.0 }; ///[km]
+    std::array<double, 4> c = { 0.0, -0.451, 0.769, 0.901 };
     /// Boltzmann constant
     static constexpr double k = 1.380649E-23; ///[J/K]
     /// concentration of air molecules
