@@ -188,8 +188,11 @@ public:
 
 int main()
 {
-    SimpliestGECModel m;
+    //измерь время работы программы, оцени сколько будет работать расчёт для широтно-долготной модели и посчитай её.
+    //использульзуй ситайм
+    GeoModel m(1.0, 1.0);
     m.getPot("plots/potential_2_columns.txt", 1);
     std::cout << "Ionosphere potential is " << m.getIP() << "\t[kV]" << std::endl;
+    //Ionosphere potential is -18.75	[kV] = bullshit
     return 0;
 }
