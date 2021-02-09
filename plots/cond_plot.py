@@ -1,23 +1,15 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
-a = np.loadtxt('cond.txt')
+a = np.genfromtxt('cond_plot.txt', delimiter='\t')
 
-plt.figure(figsize=(10, 5))
-
-plt.title("Conductivity Parametrization")
-
-plt.xlabel(r'conductivity [S/cm]')
-plt.ylabel(r'altitude [km]')
-plt.plot(a[:,1], a[:,0], 'r-', label = '$xi = 0$')
-plt.plot(a[:,2], a[:,0], 'b-', label = '$xi = 0.5$')
-plt.plot(a[:,3], a[:,0], 'g-', label = '$xi = 1$')
+plt.title("Conductivity Comparison")
+plt.xlabel(r'$\sigma$  [S/cm]')
+plt.ylabel(r'$z$  [km]')
+plt.plot(a[:, 1], a[:,0],'r-', label = 'exp_conductivity') 
+plt.plot(a[:, 2], a[:,0],'b-', label = 'conductivity')
 plt.legend()
 plt.grid()
-
-plt.savefig('cond.png', bbox_inches = 'tight', dpi = 200)
+plt.tight_layout()
 
 plt.show()
