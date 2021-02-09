@@ -38,6 +38,17 @@ public:
     {
         return e_0 * mu_sum(z) * sqrt(q(z, lymbda, xi) / alpha(z));
     }
+    void test(std::string filename)
+    {
+        std::ofstream fout(filename);
+        if (fout.is_open() == false) {
+            std::cout << "Impossible to find a file" << std::endl;
+            exit(-1);
+        }
+        for (int i = 0; i < 70; i++) {
+            fout << i << "\t" << Conductivities::exp_conductivity(i) << "\t" << Conductivities::conductivity(i,0,0) << "\n";
+        }
+    }
 };
 
 /// explicit current functions
@@ -158,29 +169,56 @@ public:
     {
         ///This is the simplest parametrization
         model.reserve(2);
-        model.push_back({ 1.0, [this](double z) { return Conductivities::conductivity(z, 1.0, 1.0); }, Currents::step_current });
-        model.push_back({ 1.0, [this](double z) { return Conductivities::conductivity(z, 1.0, 1.0); }, Currents::zero_current });
+        model.push_back({ 1.0, [this](double z) { return Conductivities::conductivity(z, 0.0, 0.0); }, Currents::step_current });
+        model.push_back({ 1.0, [this](double z) { return Conductivities::conductivity(z, 0.0, 0.0); }, Currents::zero_current });
     }
 };
 
+class TestModel : public GECModel, private Conductivities, private Currents {
+public:
+    TestModel()
+        :GECModel()
+    {
+        model.reserve(2);
+        model.push_back({1.0, Conductivities::exp_conductivity, Currents::step_current});
+        model.push_back({1.0, Conductivities::exp_conductivity, Currents::zero_current});
+    }
+};
+
+double absol(double x) {
+    if (x < 0) {
+        return -x;
+    } else {
+        return x;
+    }
+}
+
 class GeoModel : public GECModel, private Conductivities, private Currents {
 private:
-    double earth_radius2 = 40408473.9788; //km
+    static constexpr double earth_radius2 = 40408473.9788; //km
 public:
     GeoModel() {};
     GeoModel(double delta_lat, double delta_lon)
     {
         size_t N = std::ceil(180.0 / delta_lat);
         size_t M = std::ceil(360.0 / delta_lon);
-        model.reserve(N * M);
-        ///Maybe there are bugs on ends
+        model.reserve(N * M); //mb reserve( (N-1) * (M-1) )
         for (unsigned n = 0; n < N; ++n) {
-            double lat_n = -90.0 + delta_lat * (0.5 + n);
-            for (unsigned m = 0; m < M; ++m) {
-                model.push_back({ delta_lon * M_PI / 180.0 * earth_radius2
-                        * 2.0 * sin(M_PI / 180 * lat_n) * sin(M_PI / 180 * delta_lat),
-                    [this, lat_n](double z) { return Conductivities::conductivity(z, lat_n, 1.0); },
-                    [lat_n](double z) { return Currents::simple_geo_current(lat_n, z); } });
+            double lat_n = -90.0 + delta_lat * n;
+            if (n == N-1) {
+                for (unsigned m = 0; m < M; ++m) {
+                    model.push_back({absol(earth_radius2 * delta_lon * integrate_Simpson(sin, lat_n, 180.0, 11)),
+                                     [this, lat_n](double z){return Conductivities::conductivity(z, 0.5 * (lat_n + 180.0), 0.5);},
+                                     [lat_n](double z){return Currents::simple_geo_current(0.5 * (lat_n + 180.0), z);}});
+                    //std::cout << earth_radius2 * delta_lon * integrate_Simpson(cos, lat_n, 180.0, 11) << "\n";
+                }
+            } else {
+                for (unsigned m = 0; m < M; ++m) {
+                    model.push_back({absol(earth_radius2 * delta_lon * integrate_Simpson(sin, lat_n, lat_n + delta_lat, 11)),
+                                     [this, lat_n, delta_lat](double z){return Conductivities::conductivity(z, lat_n + 0.5 * delta_lat, 0.5);},
+                                     [lat_n, delta_lat](double z){return Currents::simple_geo_current(lat_n + 0.5 * delta_lat, z);}});
+                    //std::cout << earth_radius2 * delta_lon * integrate_Simpson(cos, lat_n, lat_n + delta_lat, 11) << "\n";
+                }
             }
         }
     }
@@ -190,9 +228,9 @@ int main()
 {
     //измерь время работы программы, оцени сколько будет работать расчёт для широтно-долготной модели и посчитай её.
     //использульзуй ситайм
-    GeoModel m(1.0, 1.0);
-    m.getPot("plots/potential_2_columns.txt", 1);
+    GeoModel m(1.0, 2.0);
+    //SimpliestGECModel m;
+    //m.getPot("plots/potential_2_columns.txt", 17);
     std::cout << "Ionosphere potential is " << m.getIP() << "\t[kV]" << std::endl;
-    //Ionosphere potential is -18.75	[kV] = bullshit
     return 0;
 }
