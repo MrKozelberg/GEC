@@ -98,9 +98,8 @@ protected:
         std::vector<double> int_of_cur_by_cond(model.size());
         for (unsigned i = 0; i < model.size(); ++i) {
             area_by_int[i] = model[i].area / integrate_Simpson([this, i](double z) { return 1.0 / model[i].conductivity(z); }, 0.0, H, int_points);
-            int_of_cur_by_cond[i] = integrate_Simpson(
-                [this, i](double z) { return model[i].current(z) / model[i].conductivity(z); },
-                0.0, H, int_points);
+            int_of_cur_by_cond[i] = integrate_Simpson([this, i](double z) { return model[i].current(z) / model[i].conductivity(z); },
+                                                      0.0, H, int_points);
         }
         double up = 0.0, down = 0.0;
         for (unsigned i = 0; i < model.size(); ++i) {
@@ -207,15 +206,46 @@ public:
             double lat_n = -90.0 + delta_lat * n;
             if (n == N-1) {
                 for (unsigned m = 0; m < M; ++m) {
-                    model.push_back({absol(earth_radius2 * delta_lon * integrate_Simpson(sin, lat_n, 180.0, 11)),
+                    model.push_back({absol(earth_radius2 * (180.0 - lat_n) * integrate_Simpson(cos, lat_n, 180.0, 11)),
                                      [this, lat_n](double z){return Conductivities::conductivity(z, 0.5 * (lat_n + 180.0), 0.5);},
                                      [lat_n](double z){return Currents::simple_geo_current(0.5 * (lat_n + 180.0), z);}});
                     //std::cout << earth_radius2 * delta_lon * integrate_Simpson(cos, lat_n, 180.0, 11) << "\n";
                 }
             } else {
                 for (unsigned m = 0; m < M; ++m) {
-                    model.push_back({absol(earth_radius2 * delta_lon * integrate_Simpson(sin, lat_n, lat_n + delta_lat, 11)),
+                    model.push_back({absol(earth_radius2 * delta_lon * integrate_Simpson(cos, lat_n, lat_n + delta_lat, 11)),
                                      [this, lat_n, delta_lat](double z){return Conductivities::conductivity(z, lat_n + 0.5 * delta_lat, 0.5);},
+                                     [lat_n, delta_lat](double z){return Currents::simple_geo_current(lat_n + 0.5 * delta_lat, z);}});
+                    //std::cout << earth_radius2 * delta_lon * integrate_Simpson(cos, lat_n, lat_n + delta_lat, 11) << "\n";
+                }
+            }
+        }
+    }
+};
+
+class TGeoModel : public GECModel, private Conductivities, private Currents {
+private:
+    static constexpr double earth_radius2 = 40408473.9788; //km
+public:
+    TGeoModel() {};
+    TGeoModel(double delta_lat, double delta_lon)
+    {
+        size_t N = std::ceil(180.0 / delta_lat);
+        size_t M = std::ceil(360.0 / delta_lon);
+        model.reserve(N * M); //mb reserve( (N-1) * (M-1) )
+        for (unsigned n = 0; n < N; ++n) {
+            double lat_n = -90.0 + delta_lat * n;
+            if (n == N-1) {
+                for (unsigned m = 0; m < M; ++m) {
+                    model.push_back({absol(earth_radius2 * (180.0 - lat_n) * integrate_Simpson(cos, lat_n, 180.0, 11)),
+                                     Conductivities::exp_conductivity,
+                                     [lat_n](double z){return Currents::simple_geo_current(0.5 * (lat_n + 180.0), z);}});
+                    //std::cout << earth_radius2 * delta_lon * integrate_Simpson(cos, lat_n, 180.0, 11) << "\n";
+                }
+            } else {
+                for (unsigned m = 0; m < M; ++m) {
+                    model.push_back({absol(earth_radius2 * delta_lon * integrate_Simpson(cos, lat_n, lat_n + delta_lat, 11)),
+                                     Conductivities::exp_conductivity,
                                      [lat_n, delta_lat](double z){return Currents::simple_geo_current(lat_n + 0.5 * delta_lat, z);}});
                     //std::cout << earth_radius2 * delta_lon * integrate_Simpson(cos, lat_n, lat_n + delta_lat, 11) << "\n";
                 }
@@ -228,7 +258,7 @@ int main()
 {
     //измерь время работы программы, оцени сколько будет работать расчёт для широтно-долготной модели и посчитай её.
     //использульзуй ситайм
-    GeoModel m(1.0, 2.0);
+    TGeoModel m(60.0, 360.0);
     //SimpliestGECModel m;
     //m.getPot("plots/potential_2_columns.txt", 17);
     std::cout << "Ionosphere potential is " << m.getIP() << "\t[kV]" << std::endl;
