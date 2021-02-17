@@ -16,6 +16,7 @@ struct Column {
     double area;
     std::function<double(double)> conductivity;
     std::function<double(double)> current;
+    std::function<double(double)> boundary_value;
 };
 
 /// explicit conductivity functions
@@ -231,11 +232,51 @@ public:
     }
 };
 
+class GeoModel : public GECModel, private Conductivities, private Currents {
+private:
+    static constexpr double earth_radius2 = 40408473.9788; //km^2
+public:
+    GeoModel() {};
+    ///Column number can be taken from geo-coordinates: lat = delta_lat *
+    GeoModel(double delta_lat, double delta_lon)
+    {
+        size_t N = std::ceil(180.0 / delta_lat);
+        size_t M = std::ceil(360.0 / delta_lon);
+        model.reserve(N * M);                                                       //mb reserve( (N-1) * (M-1) )
+        for (unsigned n = 0; n < N; ++n) {
+            double lat_n = -90.0 + delta_lat * n;
+            if (n == N-1) {
+                for (unsigned m = 0; m < M; ++m) {
+                    model.push_back({absol(earth_radius2 * M_PI / 180.0 * delta_lon * (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n))),
+                                     [this, lat_n](double z){return Conductivities::conductivity(z, 0.5 * (lat_n + 90.0), 0.5);},
+                                     [lat_n](double z){return Currents::simple_geo_current(0.5 * (lat_n + 90.0), z);}});
+                    if (m == M - 1) {
+                        model.push_back({absol(earth_radius2 * M_PI / 180.0 * (360.0 - m * delta_lon) * (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n))),
+                                         [this, lat_n](double z){return Conductivities::conductivity(z, 0.5 * (lat_n + 90.0), 0.5);},
+                                         [lat_n](double z){return Currents::simple_geo_current(0.5 * (lat_n + 90.0), z);}});
+                    }
+                }
+            } else {
+                for (unsigned m = 0; m < M; ++m) {
+                    model.push_back({absol(earth_radius2 * M_PI / 180.0 * delta_lon * (sin(M_PI / 180.0 * (lat_n + delta_lat)) - sin(M_PI / 180.0 * lat_n))),
+                                     [this, lat_n, delta_lat](double z){return Conductivities::conductivity(z, lat_n + 0.5 * delta_lat, 0.5);},
+                                     [lat_n, delta_lat](double z){return Currents::simple_geo_current(lat_n + 0.5 * delta_lat, z);}});
+                    if (m == M - 1) {
+                        model.push_back({absol(earth_radius2 * M_PI / 180.0 * (360.0 - m * delta_lon) * (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n))),
+                                         [this, lat_n, delta_lat](double z){return Conductivities::conductivity(z, lat_n + 0.5 * delta_lat, 0.5);},
+                                         [lat_n](double z){return Currents::simple_geo_current(0.5 * (lat_n + 90.0), z);}});
+                    }
+                }
+            }
+        }
+    }
+};
+
 int main()
 {
-    TestGeoModel m(60.0, 360.0);
+    GeoModel m(1.0, 1.0);
     //SimpliestGECModel m;
-    //m.getPot("plots/potential_2_columns.txt", 17);
-    std::cout << "Ionosphere potential is " << m.getIP() << "\t[kV]" << std::endl;
+    m.getPot("plots/potential_2_columns.txt", 36*90 + 18);
+    //std::cout << "Ionosphere potential is " << m.getIP() << "\t[kV]" << std::endl;
     return 0;
 }
