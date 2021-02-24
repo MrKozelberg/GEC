@@ -10,8 +10,8 @@
 #include "sigma.h"
 #include "std_atm.h"
 
-/// This is srtuct of columns;
-/// You enter them in main() and take an ionosphere potential;
+/// This is a srtuct of columns
+/// You enter them in main() and take an ionosphere potential
 struct Column {
     double area;
     std::function<double(double)> conductivity;
@@ -27,6 +27,7 @@ protected:
     static constexpr double e_0 = 1.602176634e-19; /// [C]  
 };
 
+///This class based upon the 'sigma.h'
 ///z in kilometres
 class Conductivity : protected ParentCond {
 public:
@@ -36,6 +37,8 @@ public:
     }
 };
 
+///Exponential conductivity function is for fast tests
+///z in kilometres
 class ExpSigma: protected ParentCond {
 public:
     static double sigma(double z, ...)
@@ -55,14 +58,14 @@ public:
 /// explicit current functions
 class ParentCurr {
 protected:
-    static constexpr double j_0 = 1e-9;
+    static constexpr double j_0 = 1.2e-10;
 };
 
 class StepJ : protected ParentCurr {
 public:
     static double j(double z, ...)
     {
-        return (z >= 5.0 and z < 10.0) ? j_0 : 0.0;
+        return (z >= 6.0 and z < 11.0) ? j_0 : 0.0;
     }
 };
 
@@ -78,12 +81,12 @@ class SimpleGeoJ : protected ParentCurr, private ZeroJ, private StepJ {
 public:
     static double j(double z, double lat)
     {
-        return (std::abs(lat) <= 10) ? StepJ::j(z) : ZeroJ::j(z);
+        return (std::abs(lat) <= 5) ? StepJ::j(z) : ZeroJ::j(z);
     }
 };
 
+///it is an empty parent class for a while
 class ParentBoundVal {
-//it is an empty class for a while
 };
 
 class ZeroPhiS : private ParentBoundVal {
@@ -191,7 +194,7 @@ public:
 template <class Cond, class Curr, class BoundVal>
 class GeoModel : public GECModel, private Cond, private ParentCurr {
 protected:
-    static constexpr double earth_radius2 = 6371.0*6371.0; //km^2
+    static constexpr double earth_radius2 = 6370.0*6370.0; //km^2
     unsigned N, M;
     double delta_lat, delta_lon;
     double cell_area(unsigned n, unsigned m, double delta_lat, double delta_lon)
@@ -238,14 +241,14 @@ public:
             delta_lon = arg2;
             N = std::ceil(180.0 / delta_lat);
             M = std::ceil(360.0 / delta_lon);
-            model.reserve(N * M);
+
         } else {
             N = arg1;
             M = arg2;
-            model.reserve(N * M);
             delta_lat = 180.0 / N;
             delta_lon = 360.0 / M;
         }                 //mb reserve( (N-1) * (M-1) )
+        model.reserve(N * M);
         double lat_n = -90.0;
         for (unsigned n = 0; n < N; ++n) {
             lat_n =+ delta_lat * n;
@@ -262,10 +265,9 @@ public:
 
 int main()
 {
-    ///Degrees
     GeoModel<ExpSigma, SimpleGeoJ, ZeroPhiS> m(180.0, 360.0, false);
     //SimpliestModel<ExpSigma, StepJ, ZeroJ, ZeroPhiS> m;
-    m.getPot("plots/potential_2_columns.txt", 180*180);
-    //std::cout << "Ionosphere potential is " << m.getIP() << "\t[kV]" << std::endl;
+    //m.getPot("plots/potential_2_columns.txt", 180*180);
+    std::cout << "Ionosphere potential is " << m.getIP() << "\t[kV]" << std::endl;
     return 0;
 }
