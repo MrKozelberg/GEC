@@ -1,4 +1,4 @@
-#include <cmath>
+﻿#include <cmath>
 #include <ctime>
 #include <fstream>
 #include <functional>
@@ -16,67 +16,81 @@ struct Column {
     double area;
     std::function<double(double)> conductivity;
     std::function<double(double)> current;
-    std::function<double(double)> boundary_value;
+    double bound_val;
 };
 
 /// explicit conductivity functions
-class Conductivities : private SMZ15, private TZ06, private ZT07 {
+class ParentCond : protected SMZ15, protected TZ06, protected ZT07 {
 protected:
     static constexpr double sigma_0 = 5.0e-14;
     static constexpr double H_0 = 6.0; /// [km]
-    static constexpr double e_0 = 1.602176634e-19; /// [C]
+    static constexpr double e_0 = 1.602176634e-19; /// [C]  
+};
+
+///z in kilometres
+class Conductivity : protected ParentCond {
 public:
-    ///z in kilometres
-    static double exp_conductivity(double z)
+    double sigma(double z, double lambda, double xi)
+    {
+        return e_0 * mu_sum(z) * sqrt(q(z, lambda, xi) / alpha(z));
+    }
+};
+
+class ExpSigma: protected ParentCond {
+public:
+    static double sigma(double z, ...)
     {
         return sigma_0 * exp(z / H_0);
     };
-    static double const_conductivity(double z)
+};
+
+class ConstSigma: protected ParentCond {
+public:
+    static double sigma(double z, ...)
     {
         return sigma_0;
-    }
-    double conductivity(double z, double lymbda, double xi)
-    {
-        return e_0 * mu_sum(z) * sqrt(q(z, lymbda, xi) / alpha(z));
-    }
-    void test(std::string filename)
-    {
-        std::ofstream fout(filename);
-        if (fout.is_open() == false) {
-            std::cout << "Impossible to find a file" << std::endl;
-            exit(-1);
-        }
-        for (int i = 0; i < 70; i++) {
-            fout << i << "\t" << Conductivities::exp_conductivity(i) << "\t" << Conductivities::conductivity(i,0,0) << "\n";
-        }
     }
 };
 
 /// explicit current functions
-class Currents {
+class ParentCurr {
 protected:
     static constexpr double j_0 = 1e-9;
+};
 
+class StepJ : protected ParentCurr {
 public:
-    static double step_current(double z)
+    static double j(double z, ...)
     {
-
-        if (z >= 5.0 and z < 10.0) {
-            return j_0;
-        } else {
-            return 0.0;
-        }
+        return (z >= 5.0 and z < 10.0) ? j_0 : 0.0;
     }
-    static double zero_current(double z)
+};
+
+class ZeroJ : protected ParentCurr {
+public:
+    static double j(double z, ...)
     {
         return 0.0;
     }
-    static double simple_geo_current(double lat, double z)
+};
+
+class SimleGeoJ : protected ParentCurr, private ZeroJ, private StepJ {
+public:
+    static double j(double z, double lat)
     {
-        if (std::abs(lat) <= 10) {
-            return step_current(z);
-        } else
-            return zero_current(z);
+        return (std::abs(lat) <= 10) ? StepJ::j(z) : ZeroJ::j(z);
+    }
+};
+
+class ParentBoundVal {
+//it is an empty class for a while
+};
+
+class ZeroPhiS : private ParentBoundVal {
+public:
+    static double phi_s(double lat, double lot)
+    {
+        return 0.0;
     }
 };
 
@@ -87,7 +101,7 @@ protected:
     static constexpr double pot_step = 1.0; ///in km
     static constexpr unsigned int_points = 701;
     static constexpr unsigned int_pot_points = 11;
-    static constexpr size_t N = H / pot_step +1;
+    static constexpr size_t N = H / pot_step + 1;
     double V = 0.0;
     bool isVCalculated = false;
     std::vector<Column> model;
@@ -104,7 +118,7 @@ protected:
         }
         double up = 0.0, down = 0.0;
         for (unsigned i = 0; i < model.size(); ++i) {
-            up += area_by_int[i] * int_of_cur_by_cond[i];
+            up += area_by_int[i] * (int_of_cur_by_cond[i] - model[i].bound_val);
             down += area_by_int[i];
         }
         return up / down;
@@ -126,19 +140,13 @@ protected:
                 h[n - 1], h[n], int_pot_points);
             I2 += integrate_Simpson([this, column_num](double z) { return 1.0 / model[column_num].conductivity(z); },
                 h[n - 1], h[n], int_pot_points);
-            vec[n] = I1 - I2 * (C2 - getIP()) / C1;
+            vec[n] = I1 - I2 * (C2 - model[column_num].bound_val - getIP()) / C1;
         }
         return vec;
     }
 
 public:
-    GECModel(std::vector<Column> aModel)
-        : model(std::move(aModel))
-    {
-    }
-    GECModel()
-    {
-    }
+    explicit GECModel() = default;
     double getIP()
     {
         if (not isVCalculated) {
@@ -162,111 +170,79 @@ public:
     }
 };
 
-class SimpliestGECModel : public GECModel, private Conductivities, private Currents {
+///This is the simplest test parametrization
+/*template <class Cond>
+class SimpliestModel : public GECModel, private Cond, private ParentCur, private BoundaryValues {
 public:
-    SimpliestGECModel()
-        : GECModel()
-    {
-        ///This is the simplest parametrization
-        model.reserve(2);
-        model.push_back({ 1.0, [this](double z) { return Conductivities::conductivity(z, 0.0, 0.0); }, Currents::step_current });
-        model.push_back({ 1.0, [this](double z) { return Conductivities::conductivity(z, 0.0, 0.0); }, Currents::zero_current });
-    }
-};
-
-class TestModel : public GECModel, private Conductivities, private Currents {
-public:
-    TestModel()
-        :GECModel()
+    SimpliestModel() : GECModel()
     {
         model.reserve(2);
-        model.push_back({1.0, Conductivities::exp_conductivity, Currents::step_current});
-        model.push_back({1.0, Conductivities::exp_conductivity, Currents::zero_current});
-    }
-};
+        model.push_back({ 1.0, [this](double z) { return Cond::sigma(z, 0.0, 0.0); },
+                          ParentCur::step_current,
+                          BoundaryValues::zero(0.5,0.5) });
 
-double absol(double x) {
-    if (x < 0) {
-        return -x;
-    } else {
-        return x;
+        model.push_back({ 1.0, [this](double z) { return Cond::sigma(z, 0.0, 0.0); },
+                          ParentCur::zero_current,
+                          BoundaryValues::zero(1.0,0.5) });
     }
-}
+};*/
 
-class TestGeoModel : public GECModel, private Conductivities, private Currents {
+
+template <class Cond, class Curr, class BoundVal>
+class GeoModel : public GECModel, private Cond, private ParentCurr {
 private:
-    static constexpr double earth_radius2 = 40408473.9788; //km^2
-public:
-    TestGeoModel() {};
-    TestGeoModel(double delta_lat, double delta_lon)
+    static constexpr double earth_radius2 = 6371.0*6371.0; //km^2
+    double N, M;
+
+    double cell_area(unsigned n, unsigned m, double delta_lat, double delta_lon)
     {
-        size_t N = std::ceil(180.0 / delta_lat);
-        size_t M = std::ceil(360.0 / delta_lon);
-        model.reserve(N * M);                                                       //mb reserve( (N-1) * (M-1) )
-        for (unsigned n = 0; n < N; ++n) {
-            double lat_n = -90.0 + delta_lat * n;
-            if (n == N-1) {
-                for (unsigned m = 0; m < M; ++m) {
-                    model.push_back({absol(earth_radius2 * M_PI / 180.0 * delta_lon * (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n))),
-                                     Conductivities::exp_conductivity,
-                                     [lat_n](double z){return Currents::simple_geo_current(0.5 * (lat_n + 90.0), z);}});
-                    if (m == M - 1) {
-                        model.push_back({absol(earth_radius2 * M_PI / 180.0 * (360.0 - m * delta_lon) * (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n))),
-                                         Conductivities::exp_conductivity,
-                                         [lat_n](double z){return Currents::simple_geo_current(0.5 * (lat_n + 90.0), z);}});
-                    }
-                }
+        double lat_n = -90.0 + delta_lat * n;
+        if (n != N-1 and m != M-1) {
+            return fabs(earth_radius2 * M_PI / 180.0 * delta_lon * (sin(M_PI / 180.0 * (lat_n + delta_lat)) - sin(M_PI / 180.0 * lat_n)));
+        } else {
+            if (m == M-1) {
+                return fabs(earth_radius2 * M_PI / 180.0 * (360.0 - m * delta_lon) * (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n)));
             } else {
-                for (unsigned m = 0; m < M; ++m) {
-                    model.push_back({absol(earth_radius2 * M_PI / 180.0 * delta_lon * (sin(M_PI / 180.0 * (lat_n + delta_lat)) - sin(M_PI / 180.0 * lat_n))),
-                                     Conductivities::exp_conductivity,
-                                     [lat_n, delta_lat](double z){return Currents::simple_geo_current(lat_n + 0.5 * delta_lat, z);}});
-                    if (m == M - 1) {
-                        model.push_back({absol(earth_radius2 * M_PI / 180.0 * (360.0 - m * delta_lon) * (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n))),
-                                         Conductivities::exp_conductivity,
-                                         [lat_n](double z){return Currents::simple_geo_current(0.5 * (lat_n + 90.0), z);}});
-                    }
-                }
+                return fabs(earth_radius2 * M_PI / 180.0 * delta_lon * (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n)));
             }
         }
     }
-};
 
-class GeoModel : public GECModel, private Conductivities, private Currents {
-private:
-    static constexpr double earth_radius2 = 40408473.9788; //km^2
+    double lat_arg(unsigned n, double delta_lat)
+    {
+        double lat_n = -90.0 + delta_lat * n;
+        if (n == N-1) {
+            return 0.5 * (lat_n + 90.0);
+        } else {
+            return lat_n + 0.5 * delta_lat;
+        }
+    }
+
+    double lon_arg(unsigned m, double delta_lon)
+    {
+        double lon_m = delta_lon * m;
+        if (m == M-1) {
+            return 0.5 * (lon_m + 360.0);
+        } else {
+            return lon_m + 0.5 * delta_lon;
+        }
+    }
+
 public:
-    GeoModel() {};
-    ///Column number can be taken from geo-coordinates: lat = delta_lat *
     GeoModel(double delta_lat, double delta_lon)
     {
-        size_t N = std::ceil(180.0 / delta_lat);
-        size_t M = std::ceil(360.0 / delta_lon);
-        model.reserve(N * M);                                                       //mb reserve( (N-1) * (M-1) )
+        N = std::ceil(180.0 / delta_lat);
+        M = std::ceil(360.0 / delta_lon);
+        model.reserve(N * M);                   //mb reserve( (N-1) * (M-1) )
+        double lat_n = -90.0;
         for (unsigned n = 0; n < N; ++n) {
-            double lat_n = -90.0 + delta_lat * n;
-            if (n == N-1) {
-                for (unsigned m = 0; m < M; ++m) {
-                    model.push_back({absol(earth_radius2 * M_PI / 180.0 * delta_lon * (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n))),
-                                     [this, lat_n](double z){return Conductivities::conductivity(z, 0.5 * (lat_n + 90.0), 0.5);},
-                                     [lat_n](double z){return Currents::simple_geo_current(0.5 * (lat_n + 90.0), z);}});
-                    if (m == M - 1) {
-                        model.push_back({absol(earth_radius2 * M_PI / 180.0 * (360.0 - m * delta_lon) * (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n))),
-                                         [this, lat_n](double z){return Conductivities::conductivity(z, 0.5 * (lat_n + 90.0), 0.5);},
-                                         [lat_n](double z){return Currents::simple_geo_current(0.5 * (lat_n + 90.0), z);}});
-                    }
-                }
-            } else {
-                for (unsigned m = 0; m < M; ++m) {
-                    model.push_back({absol(earth_radius2 * M_PI / 180.0 * delta_lon * (sin(M_PI / 180.0 * (lat_n + delta_lat)) - sin(M_PI / 180.0 * lat_n))),
-                                     [this, lat_n, delta_lat](double z){return Conductivities::conductivity(z, lat_n + 0.5 * delta_lat, 0.5);},
-                                     [lat_n, delta_lat](double z){return Currents::simple_geo_current(lat_n + 0.5 * delta_lat, z);}});
-                    if (m == M - 1) {
-                        model.push_back({absol(earth_radius2 * M_PI / 180.0 * (360.0 - m * delta_lon) * (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n))),
-                                         [this, lat_n, delta_lat](double z){return Conductivities::conductivity(z, lat_n + 0.5 * delta_lat, 0.5);},
-                                         [lat_n](double z){return Currents::simple_geo_current(0.5 * (lat_n + 90.0), z);}});
-                    }
-                }
+            lat_n =+ delta_lat * n;
+            for (unsigned m = 0; m < M; ++m) {
+                model.push_back({ cell_area(n, m, delta_lat, delta_lon),
+                                  [this, n, delta_lat](double z){return Cond::sigma(z, lat_arg(n, delta_lat), 0.5);},
+                                  [n, delta_lat, this](double z){return Curr::j(z, lat_arg(n, delta_lat));},
+                                  BoundVal::phi_s(lat_arg(n, delta_lat), lon_arg(m, delta_lon))
+                                });
             }
         }
     }
@@ -274,9 +250,9 @@ public:
 
 int main()
 {
-    GeoModel m(1.0, 1.0);
+    GeoModel<ExpSigma, SimleGeoJ, ZeroPhiS> m(60.0, 360.0);
     //SimpliestGECModel m;
-    m.getPot("plots/potential_2_columns.txt", 36*90 + 18);
-    //std::cout << "Ionosphere potential is " << m.getIP() << "\t[kV]" << std::endl;
+    //m.getPot("plots/potential_2_columns.txt", 36*90 + 18);
+    std::cout << "Ionosphere potential is " << m.getIP() << "\t[kV]" << std::endl;
     return 0;
 }
