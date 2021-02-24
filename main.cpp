@@ -74,7 +74,7 @@ public:
     }
 };
 
-class SimleGeoJ : protected ParentCurr, private ZeroJ, private StepJ {
+class SimpleGeoJ : protected ParentCurr, private ZeroJ, private StepJ {
 public:
     static double j(double z, double lat)
     {
@@ -171,29 +171,29 @@ public:
 };
 
 ///This is the simplest test parametrization
-/*template <class Cond>
-class SimpliestModel : public GECModel, private Cond, private ParentCur, private BoundaryValues {
+template <class Cond, class Curr1, class Curr2, class BoundVal>
+class SimpliestModel : public GECModel, private Cond, private ParentCurr, private ParentBoundVal {
 public:
     SimpliestModel() : GECModel()
     {
         model.reserve(2);
         model.push_back({ 1.0, [this](double z) { return Cond::sigma(z, 0.0, 0.0); },
-                          ParentCur::step_current,
-                          BoundaryValues::zero(0.5,0.5) });
+                          [this](double z){return Curr1::j(z);},
+                          BoundVal::phi_s(0.5,0.5) });
 
         model.push_back({ 1.0, [this](double z) { return Cond::sigma(z, 0.0, 0.0); },
-                          ParentCur::zero_current,
-                          BoundaryValues::zero(1.0,0.5) });
+                          [this](double z){return Curr2::j(z);},
+                          BoundVal::phi_s(1.5,0.5) });
     }
-};*/
+};
 
 
 template <class Cond, class Curr, class BoundVal>
 class GeoModel : public GECModel, private Cond, private ParentCurr {
-private:
+protected:
     static constexpr double earth_radius2 = 6371.0*6371.0; //km^2
-    double N, M;
-
+    unsigned N, M;
+    double delta_lat, delta_lon;
     double cell_area(unsigned n, unsigned m, double delta_lat, double delta_lon)
     {
         double lat_n = -90.0 + delta_lat * n;
@@ -229,18 +229,30 @@ private:
     }
 
 public:
-    GeoModel(double delta_lat, double delta_lon)
+    ///K == true => the arguments are coorginate steps
+    ///K != false => the arguments define the number of steps
+    GeoModel(double arg1, double arg2, bool K)
     {
-        N = std::ceil(180.0 / delta_lat);
-        M = std::ceil(360.0 / delta_lon);
-        model.reserve(N * M);                   //mb reserve( (N-1) * (M-1) )
+        if (K==true) {
+            delta_lat = arg1;
+            delta_lon = arg2;
+            N = std::ceil(180.0 / delta_lat);
+            M = std::ceil(360.0 / delta_lon);
+            model.reserve(N * M);
+        } else {
+            N = arg1;
+            M = arg2;
+            model.reserve(N * M);
+            delta_lat = 180.0 / N;
+            delta_lon = 360.0 / M;
+        }                 //mb reserve( (N-1) * (M-1) )
         double lat_n = -90.0;
         for (unsigned n = 0; n < N; ++n) {
             lat_n =+ delta_lat * n;
             for (unsigned m = 0; m < M; ++m) {
                 model.push_back({ cell_area(n, m, delta_lat, delta_lon),
-                                  [this, n, delta_lat](double z){return Cond::sigma(z, lat_arg(n, delta_lat), 0.5);},
-                                  [n, delta_lat, this](double z){return Curr::j(z, lat_arg(n, delta_lat));},
+                                  [this, n](double z){return Cond::sigma(z, lat_arg(n, delta_lat), 0.5);},
+                                  [n, this](double z){return Curr::j(z, lat_arg(n, delta_lat));},
                                   BoundVal::phi_s(lat_arg(n, delta_lat), lon_arg(m, delta_lon))
                                 });
             }
@@ -250,9 +262,10 @@ public:
 
 int main()
 {
-    GeoModel<ExpSigma, SimleGeoJ, ZeroPhiS> m(60.0, 360.0);
-    //SimpliestGECModel m;
-    //m.getPot("plots/potential_2_columns.txt", 36*90 + 18);
-    std::cout << "Ionosphere potential is " << m.getIP() << "\t[kV]" << std::endl;
+    ///Degrees
+    GeoModel<ExpSigma, SimpleGeoJ, ZeroPhiS> m(180.0, 360.0, false);
+    //SimpliestModel<ExpSigma, StepJ, ZeroJ, ZeroPhiS> m;
+    m.getPot("plots/potential_2_columns.txt", 180*180);
+    //std::cout << "Ionosphere potential is " << m.getIP() << "\t[kV]" << std::endl;
     return 0;
 }
