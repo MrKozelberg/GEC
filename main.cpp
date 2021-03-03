@@ -1,6 +1,6 @@
 ﻿#include <cmath>
 #include <ctime>
-#include <fstream>
+#include <cstdlib>
 #include <functional>
 #include <iostream>
 #include <string>
@@ -8,10 +8,11 @@
 
 #include "integral.h"
 #include "sigma.h"
-#include "std_atm.h"
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// This is a srtuct of columns
 /// You enter them in main() and take an ionosphere potential
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Column {
     double area;
     std::function<double(double)> conductivity;
@@ -19,7 +20,9 @@ struct Column {
     double bound_val;
 };
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// explicit conductivity functions
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class ParentCond : protected SMZ15, protected TZ06, protected ZT07 {
 protected:
     static constexpr double sigma_0 = 5.0e-14;
@@ -49,13 +52,15 @@ public:
 
 class ConstSigma: protected ParentCond {
 public:
-    static double sigma(double z, ...)
+    static double sigma(...)
     {
         return sigma_0;
     }
 };
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// explicit current functions
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class ParentCurr {
 protected:
     static constexpr double j_0 = 1.2e-10;
@@ -71,7 +76,7 @@ public:
 
 class ZeroJ : protected ParentCurr {
 public:
-    static double j(double z, ...)
+    static double j(...)
     {
         return 0.0;
     }
@@ -85,19 +90,24 @@ public:
     }
 };
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// explicit boundary values function
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///it is an empty parent class for a while
 class ParentBoundVal {
 };
 
 class ZeroPhiS : private ParentBoundVal {
 public:
-    static double phi_s(double lat, double lot)
+    static double phi_s(...)
     {
         return 0.0;
     }
 };
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// It is the central class, here you can find any parameters of the model
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class GECModel {
 protected:
     static constexpr double H = 70.0; ///in km
@@ -130,11 +140,11 @@ protected:
     /// This is a function that calculates the potention on the i * pot_step
     std::array<double, N> calc_pot(unsigned column_num)
     {
-        std::array<double, N> vec;
+        std::array<double, N> vec{};
         double I1 = 0.0, I2 = 0.0, C1, C2;
         C1 = integrate_Simpson([this, column_num](double z) { return 1.0 / model[column_num].conductivity(z); }, 0.0, H, int_points);
         C2 = integrate_Simpson([this, column_num](double z) { return model[column_num].current(z) / model[column_num].conductivity(z); }, 0.0, H, int_points);
-        std::array<double, N> h;
+        std::array<double, N> h{};
         for (unsigned n = 0; n < N; ++n) {
             h[n] = n * pot_step;
         }
@@ -158,11 +168,11 @@ public:
         }
         return V;
     }
-    void getPot(std::string filename, unsigned column_num)
+    void getPot(const std::string& filename, unsigned column_num)
     {
         std::array<double, N> vec = calc_pot(column_num);
         std::ofstream fout(filename);
-        if (fout.is_open() == false) {
+        if (!fout.is_open()) {
             std::cout << "Impossible to find a file" << std::endl;
             exit(-1);
         }
@@ -173,11 +183,11 @@ public:
     }
 };
 
-///This is the simplest test parametrization
+/*///This is the simplest test parametrization
 template <class Cond, class Curr1, class Curr2, class BoundVal>
-class SimpliestModel : public GECModel, private Cond, private ParentCurr, private ParentBoundVal {
+class SimplestModel : public GECModel, private Cond, private ParentCurr, private ParentBoundVal {
 public:
-    SimpliestModel() : GECModel()
+    SimplestModel() : GECModel()
     {
         model.reserve(2);
         model.push_back({ 1.0, [this](double z) { return Cond::sigma(z, 0.0, 0.0); },
@@ -188,70 +198,71 @@ public:
                           [this](double z){return Curr2::j(z);},
                           BoundVal::phi_s(1.5,0.5) });
     }
-};
+};*/
 
-
+/////////////////////////////////////////////////////////////////////////////
+/// It is the latitude and longtitude grid with the parametrization you want
+/////////////////////////////////////////////////////////////////////////////
 template <class Cond, class Curr, class BoundVal>
-class GeoModel : public GECModel, private Cond, private ParentCurr {
+class GeoModel : public GECModel {
 protected:
-    static constexpr double earth_radius2 = 6370.0*6370.0; //km^2
+    static constexpr double earth_radius2 = 6370.0*6370.0; ///< km^2
     unsigned N, M;
     double delta_lat, delta_lon;
-    double cell_area(unsigned n, unsigned m, double delta_lat, double delta_lon)
+    double cell_area(unsigned n, unsigned m, double d_lat, double d_lon)
     {
-        double lat_n = -90.0 + delta_lat * n;
+        double lat_n = -90.0 + d_lat * n;
         if (n != N-1 and m != M-1) {
-            return fabs(earth_radius2 * M_PI / 180.0 * delta_lon * (sin(M_PI / 180.0 * (lat_n + delta_lat)) - sin(M_PI / 180.0 * lat_n)));
+            return fabs(earth_radius2 * M_PI / 180.0 * d_lon * (sin(M_PI / 180.0 * (lat_n + d_lat)) - sin(M_PI / 180.0 * lat_n)));
         } else {
             if (m == M-1) {
-                return fabs(earth_radius2 * M_PI / 180.0 * (360.0 - m * delta_lon) * (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n)));
+                return fabs(earth_radius2 * M_PI / 180.0 * (360.0 - m * d_lon) * (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n)));
             } else {
-                return fabs(earth_radius2 * M_PI / 180.0 * delta_lon * (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n)));
+                return fabs(earth_radius2 * M_PI / 180.0 * d_lon * (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n)));
             }
         }
     }
 
-    double lat_arg(unsigned n, double delta_lat)
+    double lat_arg(unsigned n, double d_lat)
     {
-        double lat_n = -90.0 + delta_lat * n;
+        double lat_n = -90.0 + d_lat * n;
         if (n == N-1) {
             return 0.5 * (lat_n + 90.0);
         } else {
-            return lat_n + 0.5 * delta_lat;
+            return lat_n + 0.5 * d_lat;
         }
     }
 
-    double lon_arg(unsigned m, double delta_lon)
+    double lon_arg(unsigned m, double d_lon)
     {
-        double lon_m = delta_lon * m;
+        double lon_m = d_lon * m;
         if (m == M-1) {
             return 0.5 * (lon_m + 360.0);
         } else {
-            return lon_m + 0.5 * delta_lon;
+            return lon_m + 0.5 * d_lon;
         }
     }
 
 public:
-    ///K == true => the arguments are coorginate steps
-    ///K != false => the arguments define the number of steps
+    /// \param K
+    /// K == true => the arguments are coordinate steps
+    /// K != false => the arguments define the number of steps
     GeoModel(double arg1, double arg2, bool K)
     {
-        if (K==true) {
+        if (K) {
             delta_lat = arg1;
             delta_lon = arg2;
             N = std::ceil(180.0 / delta_lat);
             M = std::ceil(360.0 / delta_lon);
 
         } else {
-            N = arg1;
-            M = arg2;
+            N = (unsigned) arg1;
+            M = (unsigned) arg2;
             delta_lat = 180.0 / N;
             delta_lon = 360.0 / M;
         }                 //mb reserve( (N-1) * (M-1) )
         model.reserve(N * M);
-        double lat_n = -90.0;
         for (unsigned n = 0; n < N; ++n) {
-            lat_n =+ delta_lat * n;
             for (unsigned m = 0; m < M; ++m) {
                 model.push_back({ cell_area(n, m, delta_lat, delta_lon),
                                   [this, n](double z){return Cond::sigma(z, lat_arg(n, delta_lat), 0.5);},
@@ -263,11 +274,16 @@ public:
     }
 };
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// \brief main
+/// \return IP
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 int main()
 {
     GeoModel<ExpSigma, SimpleGeoJ, ZeroPhiS> m(180.0, 360.0, false);
     //SimpliestModel<ExpSigma, StepJ, ZeroJ, ZeroPhiS> m;
     //m.getPot("plots/potential_2_columns.txt", 180*180);
-    std::cout << "Ionosphere potential is " << m.getIP() << "\t[kV]" << std::endl;
-    return 0;
+    std::cout << "Ionosphere potential is " << m.getIP() << " [kV]" << std::endl;
+    EXIT_FAILURE; M_PI;
+    return EXIT_SUCCESS;
 }

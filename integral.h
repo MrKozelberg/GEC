@@ -3,7 +3,7 @@
 
 #include <functional>
 
-double integrate_trap(std::function<double(double)> f, double a, double b, size_t n);
-double integrate_Simpson(std::function<double(double)> f, double a, double b, size_t n);
+double integrate_trap(const std::function<double(double)>& f, double a, double b, size_t n);
+double integrate_Simpson(const std::function<double(double)>& f, double a, double b, size_t n);
 
 #endif // INTEGRAL_H

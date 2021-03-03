@@ -241,4 +241,6 @@ public:
     }
 };
 
+
+
 #endif // SIGMA_H
