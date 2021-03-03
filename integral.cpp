@@ -1,6 +1,4 @@
 #include <boost/numeric/ublas/io.hpp>
-#include <boost/numeric/ublas/lu.hpp>
-#include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/vector.hpp>
 
 #include "integral.h"
@@ -9,7 +7,7 @@
 #include <iostream>
 
 double
-integrate_trap(std::function<double(double)> f, double a, double b, size_t n)
+integrate_trap(const std::function<double(double)>& f, double a, double b, size_t n)
 {
     using namespace boost::numeric::ublas;
     vector<double> func(n), help(n);
@@ -17,18 +15,14 @@ integrate_trap(std::function<double(double)> f, double a, double b, size_t n)
     // filling vectors with values
     for (size_t i = 0; i < n; ++i) {
         func(i) = f(a + i * step);
-        if (i != 0 or i != n) {
-            help(i) = 2;
-        } else {
-            help(i) = 2;
-        }
+        help(i) = 2;
     }
     help *= (step / 2);
     return inner_prod(func, help);
 }
 
 double
-integrate_Simpson(std::function<double(double)> f, double a, double b, size_t n)
+integrate_Simpson(const std::function<double(double)>& f, double a, double b, size_t n)
 {
     using namespace boost::numeric::ublas;
     try {
