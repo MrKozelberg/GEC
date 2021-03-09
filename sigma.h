@@ -19,11 +19,7 @@ private:
     double lymbda_old = 0.0;
     static double L(double lymbda, double lymbda_0)
     {
-        if (std::abs(lymbda) < lymbda_0) {
-            return std::abs(lymbda);
-        } else {
-            return lymbda_0;
-        }
+        return (std::abs(lymbda) < lymbda_0) ? std::abs(lymbda) : lymbda_0;
     }
     /// constants
     static constexpr double T_q = 297.15; ///< [K]
