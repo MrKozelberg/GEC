@@ -36,11 +36,11 @@ extern "C"
 /** geomagnetic coordinates by geodetic coordinates
  *
  * @param dyear real value of year (2018.5 for 30 june 2018)
- * @param lati latitude in degres
- * @param longi geomagnetic longitude in degres
+ * @param lati latitude in degrees
+ * @param longi geomagnetic longitude in degrees
  * @param alti altitude in km
- * @param latm  geomagnetic latitude in degres
- * @param longm   geomagnetic longitude in degres
+ * @param latm  geomagnetic latitude in degrees
+ * @param longm   geomagnetic longitude in degrees
  * @param altm  altitude in km
  */
 void gdz_to_mag(double dyear,
@@ -57,13 +57,13 @@ void gdz_to_mag(double dyear,
 }
 
 
-/** geomagnetic latitude in degres
+/** geomagnetic latitude in degrees
  *
  * @param dyear real value of year (2018.5 for 30 june 2018)
- * @param lat   latitude    in degres
- * @param lon   longitude   in degres
+ * @param lat   latitude    in degrees
+ * @param lon   longitude   in degrees
  * @param alt   altitude    in km
- * @return geomagnetic latitude in degres
+ * @return geomagnetic latitude in degrees
  */
 double geomag_lat_by_gzd(double dyear, double lat, double lon, double alt)
 {

@@ -11,10 +11,8 @@
 #include "sigma.h"
 #include "geomagnetic.h"
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// This is a srtuct of columns
+/// This is a struct of columns
 /// You enter them in main() and take an ionosphere potential
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Column {
     double area;
     std::function<double(double)> conductivity;
@@ -22,9 +20,7 @@ struct Column {
     double bound_val;
 };
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// explicit conductivity functions
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class ParentCond : protected SMZ15, protected TZ06, protected ZT07 {
 protected:
     static constexpr double sigma_0 = 5.0e-14;
@@ -34,7 +30,8 @@ protected:
 
 ///This class based upon the 'sigma.h'
 ///z in kilometres
-class Conductivity : protected ParentCond {
+///lambda is geomagnetic longitude [rad]
+class [[maybe_unused]] Conductivity : protected ParentCond {
 public:
     static double sigma(double z, double lambda, double xi)
     {
@@ -61,9 +58,9 @@ public:
     }
 };
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// explicit current functions
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 class ParentCurr {
 protected:
     static constexpr double j_0 = 1.2e-10;
@@ -85,7 +82,7 @@ public:
     }
 };
 
-class SimpleGeoJ : protected ParentCurr, private ZeroJ, private StepJ {
+class [[maybe_unused]] SimpleGeoJ : protected ParentCurr, private ZeroJ, private StepJ {
 public:
     static double j(double z, double lat)
     {
@@ -93,14 +90,12 @@ public:
     }
 };
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// explicit boundary values function
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///it is an empty parent class for a while
 class ParentBoundVal {
 };
 
-class ZeroPhiS : private ParentBoundVal {
+class [[maybe_unused]] ZeroPhiS : private ParentBoundVal {
 public:
     static double phi_s(...)
     {
@@ -108,9 +103,7 @@ public:
     }
 };
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// It is the central class, here you can find any parameters of the model
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class GECModel {
 protected:
     static constexpr double H = 70.0; ///in km
@@ -122,15 +115,22 @@ protected:
     bool isVCalculated = false;
     std::vector<Column> model;
 
-    /// This is a function that calculates an ionosphere potention
+    /// This is a function that calculates an ionosphere potential
     double calc_ip()
     {
         std::vector<double> area_by_int(model.size());
         std::vector<double> int_of_cur_by_cond(model.size());
         for (unsigned i = 0; i < model.size(); ++i) {
-            area_by_int[i] = model[i].area / integrate_Simpson([this, i](double z) { return 1.0 / model[i].conductivity(z); }, 0.0, H, int_points);
-            int_of_cur_by_cond[i] = integrate_Simpson([this, i](double z) { return model[i].current(z) / model[i].conductivity(z); },
-                                                      0.0, H, int_points);
+            area_by_int[i] = model[i].area / integrate_Simpson([this, i](double z)
+                        { return 1.0 / model[i].conductivity(z); },
+                    0.0,
+                    H,
+                    int_points);
+            int_of_cur_by_cond[i] = integrate_Simpson([this, i](double z)
+                        { return model[i].current(z) / model[i].conductivity(z); },
+                    0.0,
+                    H,
+                    int_points);
         }
         double up = 0.0, down = 0.0;
         for (unsigned i = 0; i < model.size(); ++i) {
@@ -140,22 +140,28 @@ protected:
         return up / down;
     }
 
-    /// This is a function that calculates the potention on the i * pot_step
+    /// This is a function that calculates the potential on the i * pot_step
     std::array<double, N> calc_pot(unsigned column_num)
     {
         std::array<double, N> vec{};
         double I1 = 0.0, I2 = 0.0, C1, C2;
-        C1 = integrate_Simpson([this, column_num](double z) { return 1.0 / model[column_num].conductivity(z); }, 0.0, H, int_points);
-        C2 = integrate_Simpson([this, column_num](double z) { return model[column_num].current(z) / model[column_num].conductivity(z); }, 0.0, H, int_points);
+        C1 = integrate_Simpson([this, column_num](double z)
+                { return 1.0 / model[column_num].conductivity(z); },
+                0.0, H, int_points);
+        C2 = integrate_Simpson([this, column_num](double z)
+                { return model[column_num].current(z) / model[column_num].conductivity(z); },
+                0.0, H, int_points);
         std::array<double, N> h{};
         for (unsigned n = 0; n < N; ++n) {
             h[n] = n * pot_step;
         }
         for (unsigned n = 1; n < N; ++n) {
-            I1 += integrate_Simpson([this, column_num](double z) { return model[column_num].current(z) / model[column_num].conductivity(z); },
-                h[n - 1], h[n], int_pot_points);
-            I2 += integrate_Simpson([this, column_num](double z) { return 1.0 / model[column_num].conductivity(z); },
-                h[n - 1], h[n], int_pot_points);
+            I1 += integrate_Simpson([this, column_num](double z)
+                    { return model[column_num].current(z) / model[column_num].conductivity(z); },
+                    h[n - 1], h[n], int_pot_points);
+            I2 += integrate_Simpson([this, column_num](double z)
+                    { return 1.0 / model[column_num].conductivity(z); },
+                    h[n - 1], h[n], int_pot_points);
             vec[n] = I1 - I2 * (C2 - model[column_num].bound_val - getIP()) / C1;
         }
         return vec;
@@ -187,28 +193,9 @@ public:
     }
 };
 
-/*///This is the simplest test parametrization
-template <class Cond, class Curr1, class Curr2, class BoundVal>
-class SimplestModel : public GECModel, private Cond, private ParentCurr, private ParentBoundVal {
-public:
-    SimplestModel() : GECModel()
-    {
-        model.reserve(2);
-        model.push_back({ 1.0, [this](double z) { return Cond::sigma(z, 0.0, 0.0); },
-                          [this](double z){return Curr1::j(z);},
-                          BoundVal::phi_s(0.5,0.5) });
-
-        model.push_back({ 1.0, [this](double z) { return Cond::sigma(z, 0.0, 0.0); },
-                          [this](double z){return Curr2::j(z);},
-                          BoundVal::phi_s(1.5,0.5) });
-    }
-};*/
-
-/////////////////////////////////////////////////////////////////////////////
-/// It is the latitude and longtitude grid with the parametrization you want
-/////////////////////////////////////////////////////////////////////////////
+/// It is the latitude and longitude grid with the parametrization you want
 template <class Cond, class Curr, class BoundVal>
-class GeoModel : public GECModel {
+class [[maybe_unused]] GeoModel : public GECModel {
 protected:
     static constexpr double earth_radius2 = 6370.0*6370.0; ///< km^2
     unsigned N, M;
@@ -251,7 +238,7 @@ public:
     /// \param K
     /// K == true => the arguments are coordinate steps
     /// K != false => the arguments define the number of steps
-    GeoModel(double arg1, double arg2, bool K)
+    [[maybe_unused]] GeoModel(double arg1, double arg2, bool K)
     {
         if (K) {
             delta_lat = arg1;
@@ -264,7 +251,7 @@ public:
             M = (unsigned) arg2;
             delta_lat = 180.0 / N;
             delta_lon = 360.0 / M;
-        }                 //mb reserve( (N-1) * (M-1) )
+        }
         model.reserve(N * M);
         for (unsigned n = 0; n < N; ++n) {
             for (unsigned m = 0; m < M; ++m) {
@@ -278,20 +265,18 @@ public:
     }
 };
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// \brief main
 /// \return IP
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 int main()
 {
-    //GeoModel<Conductivity, SimpleGeoJ, ZeroPhiS> m(180.0, 360.0, false);
-    //SimplestModel<ExpSigma, StepJ, ZeroJ, ZeroPhiS> m;
+    GeoModel<Conductivity, SimpleGeoJ, ZeroPhiS> m(180.0, 360.0, false);
     //m.getPot("plots/potential_2_columns.txt", 180*180);
-    //std::cout << "Ionosphere potential is " << m.getIP() << " [kV]" << std::endl;
-    double latm, longm, altm;
-    gdz_to_mag(2020.0, 50.0, 50.0, 10.0, latm, longm, altm);
+    std::cout << "Ionosphere potential is " << m.getIP() << " [kV]" << std::endl;
+    /*double latm, longm, altm;
+    gdz_to_mag(2020.2, 50.0, 50.0, 10.0, latm, longm, altm);
     std::cout << "latm = " << latm << "\n"
               << "longm = " << longm << "\n"
-              << "altm = " << altm << "\n";
+              << "altm = " << altm << "\n";*/
     return EXIT_SUCCESS;
 }
