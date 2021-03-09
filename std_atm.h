@@ -28,7 +28,7 @@ private:
     constexpr static double M = 28.9644;
     constexpr static double g = 9.80665;
     constexpr static double z[7] = { 0.0, 11.0, 20.0, 32.0, 47.0, 51.0, 70.0 };
-    double T[7], p[7];
+    double T[7]{}, p[7]{};
     constexpr static double gamma[7] = { 0.0, -6.5, 0.0, 1.0, 2.8, 0.0, -2.8 };
 
 public:
