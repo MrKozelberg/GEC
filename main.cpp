@@ -2,12 +2,14 @@
 #include <ctime>
 #include <cstdlib>
 #include <functional>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
 
 #include "integral.h"
 #include "sigma.h"
+#include "geomagnetic.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// This is a srtuct of columns
@@ -34,15 +36,16 @@ protected:
 ///z in kilometres
 class Conductivity : protected ParentCond {
 public:
-    double sigma(double z, double lambda, double xi)
+    static double sigma(double z, double lambda, double xi)
     {
-        return e_0 * mu_sum(z) * sqrt(q(z, lambda, xi) / alpha(z));
+        ZT07 m1; SMZ15 m2; TZ06 m3;
+        return e_0 * m1.mu_sum(z) * sqrt(m2.q(z, lambda, xi) / m3.alpha(z));
     }
 };
 
 ///Exponential conductivity function is for fast tests
 ///z in kilometres
-class ExpSigma: protected ParentCond {
+class [[maybe_unused]] ExpSigma: protected ParentCond {
 public:
     static double sigma(double z, ...)
     {
@@ -50,7 +53,7 @@ public:
     };
 };
 
-class ConstSigma: protected ParentCond {
+class [[maybe_unused]] ConstSigma: protected ParentCond {
 public:
     static double sigma(...)
     {
@@ -168,7 +171,8 @@ public:
         }
         return V;
     }
-    void getPot(const std::string& filename, unsigned column_num)
+
+    [[maybe_unused]] void getPot(const std::string& filename, unsigned column_num)
     {
         std::array<double, N> vec = calc_pot(column_num);
         std::ofstream fout(filename);
@@ -280,10 +284,14 @@ public:
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 int main()
 {
-    GeoModel<ExpSigma, SimpleGeoJ, ZeroPhiS> m(180.0, 360.0, false);
-    //SimpliestModel<ExpSigma, StepJ, ZeroJ, ZeroPhiS> m;
+    //GeoModel<Conductivity, SimpleGeoJ, ZeroPhiS> m(180.0, 360.0, false);
+    //SimplestModel<ExpSigma, StepJ, ZeroJ, ZeroPhiS> m;
     //m.getPot("plots/potential_2_columns.txt", 180*180);
-    std::cout << "Ionosphere potential is " << m.getIP() << " [kV]" << std::endl;
-    EXIT_FAILURE; M_PI;
+    //std::cout << "Ionosphere potential is " << m.getIP() << " [kV]" << std::endl;
+    double latm, longm, altm;
+    gdz_to_mag(2020.0, 50.0, 50.0, 10.0, latm, longm, altm);
+    std::cout << "latm = " << latm << "\n"
+              << "longm = " << longm << "\n"
+              << "altm = " << altm << "\n";
     return EXIT_SUCCESS;
 }

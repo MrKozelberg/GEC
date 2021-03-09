@@ -17,7 +17,7 @@ class SMZ15 : private StdAtm {
 private:
     double xi_old = 0.0;
     double lymbda_old = 0.0;
-    double L(double lymbda, double lymbda_0)
+    static double L(double lymbda, double lymbda_0)
     {
         if (std::abs(lymbda) < lymbda_0) {
             return std::abs(lymbda);
@@ -49,11 +49,11 @@ private:
     std::array<double, 6> d = { 0.1E6, 2.5E6, 83.0E6, 225.0E6, 236.0E6, 243.0E6 }; ///< [m^(-3)*s^(-1)]
     std::array<double, 6> g = { 0.0, 0.0, 4.0, 6.0, 5.0, 0.0 };
     std::array<double, 6> h = { 1.7, 1.7, 3.9, 3.2, 3.4, 4.0 };
-    std::array<double, 6> K_, deltaH_, U_, deltaU_, Z_, Q_;
-    std::array<double, 5> P_;
+    std::array<double, 6> K_{}, deltaH_{}, U_{}, deltaU_{}, Z_{}, Q_{};
+    std::array<double, 5> P_{};
     std::array<double, 6> K(double xi)
     {
-        std::array<double, 6> vec;
+        std::array<double, 6> vec{};
         for (size_t i = 0; i < 6; ++i) {
             vec[i] = A[i] - a[i] * xi;
         }
@@ -61,7 +61,7 @@ private:
     }
     std::array<double, 6> deltaH(double xi)
     {
-        std::array<double, 6> vec;
+        std::array<double, 6> vec{};
         vec[0] = 0.0;
         for (size_t i = 1; i < 6; ++i) {
             vec[i] = B[i] - b[i] * xi;
@@ -70,7 +70,7 @@ private:
     }
     std::array<double, 6> U(double xi)
     {
-        std::array<double, 6> vec;
+        std::array<double, 6> vec{};
         for (size_t i = 0; i < 6; ++i) {
             vec[i] = C[i] - c[i] * xi;
         }
@@ -78,7 +78,7 @@ private:
     }
     std::array<double, 6> deltaU(double xi)
     {
-        std::array<double, 6> vec;
+        std::array<double, 6> vec{};
         for (size_t i = 0; i < 6; ++i) {
             vec[i] = D[i] - d[i] * xi;
         }
@@ -86,7 +86,7 @@ private:
     }
     std::array<double, 6> Z(double lymbda)
     {
-        std::array<double, 6> vec;
+        std::array<double, 6> vec{};
         vec[0] = 0.0;
         for (size_t i = 1; i < 6; ++i) {
             vec[i] = H[i] + deltaH_[i] * pow(sin(L(lymbda, K_[i])) / sin(K_[i]), g[i]);
@@ -95,7 +95,7 @@ private:
     }
     std::array<double, 6> Q(double lymbda)
     {
-        std::array<double, 6> vec;
+        std::array<double, 6> vec{};
         for (size_t i = 0; i < 6; ++i) {
             vec[i] = U_[i] + deltaU_[i] * pow(sin(L(lymbda, K_[i])) / sin(K_[i]), h[i]);
         }
@@ -103,7 +103,7 @@ private:
     }
     std::array<double, 5> P()
     {
-        std::array<double, 5> vec;
+        std::array<double, 5> vec{};
         vec[0] = 0.0;
         vec[3] = 0.0;
         vec[1] = Q_[1] * log(Q_[1] / Q_[0]) / Z_[1];
@@ -197,7 +197,7 @@ private:
     }
 
 public:
-    TZ06() {};
+    TZ06() = default;;
     /// ION-ION RECOMBINATION COEFFICIENT alpha
     /// z [km] | p [Pa] | T [K]
     double alpha(double z)
@@ -224,14 +224,14 @@ private:
     static constexpr double T_0 = 288.15; /// [K]
     static constexpr double p_0 = 101'325; /// [Pa]
 public:
-    ZT07() {};
+    ZT07() = default;;
     /// ion mobilities [m^2/(V*s)]
     /// p [Pa] | T [K]
-    double mu_plus(double p, double T)
+    static double mu_plus(double p, double T)
     {
         return mu_0_plus * p_0 / p * pow(T / T_0, 1.5) * (T_0 + T_mu) / (T + T_mu);
     }
-    double mu_minus(double p, double T)
+    static double mu_minus(double p, double T)
     {
         return mu_0_minus * p_0 / p * pow(T / T_0, 1.5) * (T_0 + T_mu) / (T + T_mu);
     }
@@ -240,7 +240,6 @@ public:
         return mu_plus(StdAtm::pressure(z), StdAtm::temperature(z)) + mu_minus(StdAtm::pressure(z), StdAtm::temperature(z));
     }
 };
-
 
 
 #endif // SIGMA_H

@@ -6,7 +6,7 @@
 #include <functional>
 #include <iostream>
 
-double
+[[maybe_unused]] double
 integrate_trap(const std::function<double(double)>& f, double a, double b, size_t n)
 {
     using namespace boost::numeric::ublas;
