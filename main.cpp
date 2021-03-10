@@ -31,7 +31,7 @@ protected:
 ///This class based upon the 'sigma.h'
 ///z in kilometres
 ///lambda is geomagnetic longitude [rad]
-class [[maybe_unused]] Conductivity : protected ParentCond {
+class Conductivity : protected ParentCond {
 public:
     static double sigma(double z, double lambda, double xi)
     {
@@ -63,10 +63,10 @@ public:
 
 class ParentCurr {
 protected:
-    static constexpr double j_0 = 1.2e-10;
+    static constexpr double j_0 = 1.72e-10;
 };
 
-class StepJ : protected ParentCurr {
+class StepJ : private ParentCurr {
 public:
     static double j(double z, ...)
     {
@@ -74,7 +74,7 @@ public:
     }
 };
 
-class ZeroJ : protected ParentCurr {
+class ZeroJ : private ParentCurr {
 public:
     static double j(...)
     {
@@ -82,17 +82,20 @@ public:
     }
 };
 
-class [[maybe_unused]] SimpleGeoJ : protected ParentCurr, private ZeroJ, private StepJ {
+class [[maybe_unused]] SimpleGeoJ : protected ZeroJ, private StepJ {
 public:
     static double j(double z, double lat)
     {
-        return (std::abs(lat) <= 5) ? StepJ::j(z) : ZeroJ::j(z);
+        return (std::abs(lat) <= 10) ? StepJ::j(z) : ZeroJ::j(z);
     }
 };
 
 /// explicit boundary values function
 ///it is an empty parent class for a while
 class ParentBoundVal {
+protected:
+    static constexpr double phi_0 = 15.0; //[kV]
+    static constexpr double theta_0 = 20.0; //[deg]
 };
 
 class [[maybe_unused]] ZeroPhiS : private ParentBoundVal {
@@ -100,6 +103,36 @@ public:
     static double phi_s(...)
     {
         return 0.0;
+    }
+};
+
+class [[maybe_unused]] VollandPhiS : protected ParentBoundVal {
+public:
+    //theta is a longitude [deg]
+    static double k(double theta)
+    {
+        try {
+            if (theta < theta_0) {
+                throw theta; // NOLINT(hicpp-exception-baseclass)
+            }
+        } catch (double i) {
+            std::cout << "k(theta) has a wrong argument" << std::endl;
+            exit(-2);
+        }
+        if (theta < 30.0) {
+            return 1.0;
+        } else if (theta >= 30.0 && theta < 90.0) {
+            return (1 + 2 * sin(3.0 * theta)) / 2;
+        }
+        return 0.0;
+    }
+    //theta = geomagnetic longitude
+    //lambda = latitude [deg]
+    static double phi_s(double theta, double lambda)
+    {
+        return phi_0 * sin(lambda) * ((theta < theta_0) ?
+                                       sin(theta) / sin(theta_0) :
+                                       k(theta) * pow(sin(theta_0) / sin(theta), 4) );
     }
 };
 
@@ -234,43 +267,60 @@ protected:
         }
     }
 
-public:
-    /// \param K
-    /// K == true => the arguments are coordinate steps
-    /// K != false => the arguments define the number of steps
-    [[maybe_unused]] GeoModel(double arg1, double arg2, bool K)
+    double lon_arg_m(double lon_arg_, double lat_arg_)
     {
-        if (K) {
-            delta_lat = arg1;
-            delta_lon = arg2;
-            N = std::ceil(180.0 / delta_lat);
-            M = std::ceil(360.0 / delta_lon);
+        double lat_m, lon_m, alt_m;
+        gdz_to_mag(2016, lat_arg_, lon_arg_, 10.0, lat_m, lon_m, alt_m);
+        return lon_m;
+    }
 
-        } else {
-            N = (unsigned) arg1;
-            M = (unsigned) arg2;
-            delta_lat = 180.0 / N;
-            delta_lon = 360.0 / M;
-        }
-        model.reserve(N * M);
-        for (unsigned n = 0; n < N; ++n) {
-            for (unsigned m = 0; m < M; ++m) {
-                model.push_back({ cell_area(n, m, delta_lat, delta_lon),
-                                  [this, n](double z){return Cond::sigma(z, lat_arg(n, delta_lat), 0.5);},
-                                  [n, this](double z){return Curr::j(z, lat_arg(n, delta_lat));},
-                                  BoundVal::phi_s(lat_arg(n, delta_lat), lon_arg(m, delta_lon))
-                                });
+    double lat_arg_m(double lon_arg_, double lat_arg_)
+    {
+        double lat_m, lon_m, alt_m;
+        gdz_to_mag(2016, lat_arg_, lon_arg_, 10.0, lat_m, lon_m, alt_m);
+        return lat_m;
+    }
+
+public:
+    GeoModel(double arg1, double arg2, bool K)
+    {
+            if (K) {
+                delta_lat = arg1;
+                delta_lon = arg2;
+                N = std::ceil(180.0 / delta_lat);
+                M = std::ceil(360.0 / delta_lon);
+                model.reserve(N * M);
+            } else {
+                N = arg1;
+                M = arg2;
+                model.reserve(N * M);
+                delta_lat = 180.0 / N;
+                delta_lon = 360.0 / M;
+            }                 //mb reserve( (N-1) * (M-1) )
+            double lat_n = -90.0;
+            for (unsigned n = 0; n < N; ++n) {
+                lat_n =+ delta_lat * n;
+                for (unsigned m = 0; m < M; ++m) {
+                    model.push_back({ cell_area(n, m, delta_lat, delta_lon),
+                                      [this, n, m](double z)
+                                        {return Cond::sigma(z,
+                                                            lat_arg_m(lon_arg(m, delta_lon),
+                                                                      lat_arg(n, delta_lat)),
+                                                            0.5);
+                                        },
+                                      [n, this](double z){return Curr::j(z, lat_arg(n, delta_lat));},
+                                      BoundVal::phi_s(lat_arg(n, delta_lat), lon_arg(m, delta_lon))
+                                    });
+                }
             }
-        }
     }
 };
-
 
 /// \brief main
 /// \return IP
 int main()
 {
-    GeoModel<Conductivity, SimpleGeoJ, ZeroPhiS> m(180.0, 360.0, false);
+    GeoModel<Conductivity, StepJ, ZeroPhiS> m(10.0, 10.0, true);
     //m.getPot("plots/potential_2_columns.txt", 180*180);
     std::cout << "Ionosphere potential is " << m.getIP() << " [kV]" << std::endl;
     /*double latm, longm, altm;
