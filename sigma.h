@@ -16,10 +16,10 @@
 class SMZ15 : private StdAtm {
 private:
     double xi_old = 0.0;
-    double lymbda_old = 0.0;
-    static double L(double lymbda, double lymbda_0)
+    double lambda_old = 0.0;
+    static double L(double lambda, double lambda_0)
     {
-        return (std::abs(lymbda) < lymbda_0) ? std::abs(lymbda) : lymbda_0;
+        return (std::abs(lambda) < lambda_0) ? std::abs(lambda) : lambda_0;
     }
     /// constants
     static constexpr double T_q = 297.15; ///< [K]
@@ -80,20 +80,20 @@ private:
         }
         return vec;
     }
-    std::array<double, 6> Z(double lymbda)
+    std::array<double, 6> Z(double lambda)
     {
         std::array<double, 6> vec{};
         vec[0] = 0.0;
         for (size_t i = 1; i < 6; ++i) {
-            vec[i] = H[i] + deltaH_[i] * pow(sin(L(lymbda, K_[i])) / sin(K_[i]), g[i]);
+            vec[i] = H[i] + deltaH_[i] * pow(sin(L(lambda, K_[i])) / sin(K_[i]), g[i]);
         }
         return vec;
     }
-    std::array<double, 6> Q(double lymbda)
+    std::array<double, 6> Q(double lambda)
     {
         std::array<double, 6> vec{};
         for (size_t i = 0; i < 6; ++i) {
-            vec[i] = U_[i] + deltaU_[i] * pow(sin(L(lymbda, K_[i])) / sin(K_[i]), h[i]);
+            vec[i] = U_[i] + deltaU_[i] * pow(sin(L(lambda, K_[i])) / sin(K_[i]), h[i]);
         }
         return vec;
     }
@@ -132,7 +132,7 @@ private:
 public:
     ///ion-pair production rate
     ///z is a geometrical altitude [km] (LOOK DEF ABOVE)
-    ///p [Pa] | T [K] | lymbda [deg] | q, Q [m^(-3)*s^(-1)] | xi = (sin(pi*t))^2
+    ///p [Pa] | T [K] | lambda [deg] | q, Q [m^(-3)*s^(-1)] | xi = (sin(pi*t))^2
     /// takes the altitude z in km, the latitude lat in degrees and the parameter xi representing the solar cycle phase
     /// xi is confined between 0 and 1; xi = 0 corresponds to solar minima, xi = 1 corresponds to solar maxima
     /// returns the ion-pair production rate q in m^(-3) s^(-1)
@@ -142,31 +142,31 @@ public:
         deltaH_ = deltaH(xi_old);
         U_ = U(xi_old);
         deltaU_ = deltaU(xi_old);
-        Z_ = Z(lymbda_old);
-        Q_ = Q(lymbda_old);
+        Z_ = Z(lambda_old);
+        Q_ = Q(lambda_old);
         P_ = P();
         A_Q = ((Q_[2] - Q_[1]) - P_[1] * (Z_[2] - Z_[1])) / pow(Z_[2] - Z_[1], 2.0);
         B_Q = Q_[1] - pow(P_[1] * (Z_[2] - Z_[1]), 2.0) / (4.0 * ((Q_[2] - Q_[1]) - P_[1] * (Z_[2] - Z_[1])));
         C_Q = (2.0 * (Q_[2] - Q_[1]) * Z_[1] - P_[1] * (pow(Z_[2], 2.0) - pow(Z_[1], 2.0))) / (2.0 * ((Q_[2]
                     - Q_[1]) - P_[1] * (Z_[2] - Z_[1])));
     };
-    double q(double z, double lymbda, double xi)
+    double q(double z, double lambda, double xi)
     {
-        if (xi != xi_old || lymbda != lymbda_old){
+        if (xi != xi_old || lambda != lambda_old){
             /// There we can see the situation where the order is vital
             K_ = K(xi);
             deltaH_ = deltaH(xi);
             U_ = U(xi);
             deltaU_ = deltaU(xi);
-            Z_ = Z(lymbda);
-            Q_ = Q(lymbda);
+            Z_ = Z(lambda);
+            Q_ = Q(lambda);
             P_ = P();
             A_Q = ((Q_[2] - Q_[1]) - P_[1] * (Z_[2] - Z_[1])) / pow(Z_[2] - Z_[1], 2.0);
             B_Q = Q_[1] - pow(P_[1] * (Z_[2] - Z_[1]), 2.0) / (4.0 * ((Q_[2] - Q_[1]) - P_[1] * (Z_[2] - Z_[1])));
             C_Q = (2.0 * (Q_[2] - Q_[1]) * Z_[1] - P_[1] * (pow(Z_[2], 2.0) - pow(Z_[1], 2.0))) / (2.0 * ((Q_[2]
                         - Q_[1]) - P_[1] * (Z_[2] - Z_[1])));
             xi_old = xi;
-            lymbda_old = lymbda;
+            lambda_old = lambda;
         }
         return Q_STP(z) * StdAtm::pressure(z) * T_q / (p_q * StdAtm::temperature(z));
     }
