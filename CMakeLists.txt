@@ -16,6 +16,8 @@ enable_language(Fortran)
 
 add_subdirectory(irbem)
 
+add_library(cnpy SHARED "cnpy/cnpy.cpp")
+
 add_executable(Global_Electric_Circuit
         main.cpp
         integral.cpp
@@ -28,5 +30,6 @@ add_executable(Global_Electric_Circuit
 target_link_libraries(Global_Electric_Circuit
         PUBLIC ${Boost_LIBRARIES}
         irbem
+        cnpy
         )
 target_include_directories(Global_Electric_Circuit SYSTEM PUBLIC ${Boost_INCLUDE_DIR})
