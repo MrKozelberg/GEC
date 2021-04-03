@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <functional>
 #include <fstream>
+#include "cnpy.h"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -11,6 +12,8 @@
 #include "sigma.h"
 #include "geomagnetic.h"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-comma-subscript"
 /// This is a struct of columns
 /// You enter them in main() and take an ionosphere potential
 struct Column {
@@ -18,6 +21,106 @@ struct Column {
     std::function<double(double)> conductivity;
     std::function<double(double)> current;
     double bound_val;
+};
+
+/// It is the central class, here you can find any parameters of the model
+class GECModel {
+protected:
+    static constexpr double H = 70.0; ///in km
+    static constexpr double pot_step = 1.0; ///in km
+    static constexpr unsigned int_points = 701;
+    static constexpr unsigned int_pot_points = 11;
+    static constexpr size_t N = H / pot_step + 1;
+    double V = 0.0;
+    bool isVCalculated = false;
+    std::vector<Column> model;
+
+    /// This is a function that calculates an ionosphere potential
+    double calc_ip()
+    {
+        std::vector<double> area_by_int(model.size());
+        std::vector<double> int_of_cur_by_cond(model.size());
+        for (unsigned i = 0; i < model.size(); ++i) {
+            area_by_int[i] = model[i].area / integrate_Simpson([this, i](double z)
+                                                               { return 1.0 / model[i].conductivity(z); },
+                                                               0.0,
+                                                               H,
+                                                               int_points);
+            int_of_cur_by_cond[i] = integrate_Simpson([this, i](double z)
+                                                      { return model[i].current(z) / model[i].conductivity(z); },
+                                                      0.0,
+                                                      H,
+                                                      int_points);
+        }
+        double up = 0.0, down = 0.0;
+        for (unsigned i = 0; i < model.size(); ++i) {
+            up += area_by_int[i] * (int_of_cur_by_cond[i] - model[i].bound_val);
+            down += area_by_int[i];
+        }
+        return up / down;
+    }
+
+    /// This is a function that calculates the potential on the i * pot_step
+    std::array<double, N> calc_pot(unsigned column_num)
+    {
+        std::array<double, N> vec{};
+        double I1 = 0.0, I2 = 0.0, C1, C2;
+        C1 = integrate_Simpson([this, column_num](double z)
+                               { return 1.0 / model[column_num].conductivity(z); },
+                               0.0, H, int_points);
+        C2 = integrate_Simpson([this, column_num](double z)
+                               { return model[column_num].current(z) / model[column_num].conductivity(z); },
+                               0.0, H, int_points);
+        std::array<double, N> h{};
+        for (unsigned n = 0; n < N; ++n) {
+            h[n] = n * pot_step;
+        }
+        for (unsigned n = 1; n < N; ++n) {
+            I1 += integrate_Simpson([this, column_num](double z)
+                                    { return model[column_num].current(z) / model[column_num].conductivity(z); },
+                                    h[n - 1], h[n], int_pot_points);
+            I2 += integrate_Simpson([this, column_num](double z)
+                                    { return 1.0 / model[column_num].conductivity(z); },
+                                    h[n - 1], h[n], int_pot_points);
+            vec[n] = I1 - I2 * (C2 - model[column_num].bound_val - getIP()) / C1;
+        }
+        return vec;
+    }
+
+public:
+
+    explicit GECModel() = default;
+    double getIP()
+    {
+        if (not isVCalculated) {
+            V = calc_ip();
+            isVCalculated = true;
+        }
+        return V;
+    }
+    [[maybe_unused]] void getPot(const std::string& filename, unsigned column_num)
+    {
+        std::array<double, N> vec = calc_pot(column_num);
+        std::ofstream fout(filename);
+        if (!fout.is_open()) {
+            std::cout << "Impossible to find a file" << std::endl;
+            exit(-1);
+        }
+        for (unsigned n = 1; n < N; ++n) {
+            fout << n * pot_step << "\t" << vec[n] << std::endl;
+        }
+        fout.close();
+    }
+    //input DATA
+    cnpy::npz_t data = cnpy::npz_load("DATA-2015-12-31-00-new.npz");
+    cnpy::NpyArray cape_arr = data["cape"];
+    cnpy::NpyArray cbot_arr = data["cbot"];
+    cnpy::NpyArray ctop_arr = data["ctop"];
+    cnpy::NpyArray alpha_arr = data["alpha"];
+    double_t* cape = cape_arr.data<double>();
+    double_t* cbot = cbot_arr.data<double>();
+    double_t* ctop = ctop_arr.data<double>();
+    double_t* alpha_ = alpha_arr.data<double>();
 };
 
 /// explicit conductivity functions
@@ -66,7 +169,7 @@ protected:
     static constexpr double j_0 = 1.72e-10;
 };
 
-class StepJ : private ParentCurr {
+class StepJ : protected ParentCurr {
 public:
     static double j(double z, ...)
     {
@@ -74,7 +177,7 @@ public:
     }
 };
 
-class ZeroJ : private ParentCurr {
+class [[maybe_unused]] ZeroJ : protected ParentCurr {
 public:
     static double j(...)
     {
@@ -87,6 +190,17 @@ public:
     static double j(double z, double lat)
     {
         return (std::abs(lat) <= 10) ? StepJ::j(z) : ZeroJ::j(z);
+    }
+};
+
+class GeoJ : public ZeroJ, public GECModel  {
+private:
+    static constexpr double cape_0 = 1'000; // J/kg
+public:
+    double j(double z, int t, unsigned lat, unsigned lon) {
+        return GECModel::cape[t, lat, lon] < cape_0
+               || GECModel::cbot[t, lat, lon] >= z * 1'000
+               || GECModel::ctop[t, lat, lon] <= z * 1'000 ? 0 : j_0;
     }
 };
 
@@ -136,172 +250,113 @@ public:
     }
 };
 
-/// It is the central class, here you can find any parameters of the model
-class GECModel {
+class [[maybe_unused]] ParentGrid {
 protected:
-    static constexpr double H = 70.0; ///in km
-    static constexpr double pot_step = 1.0; ///in km
-    static constexpr unsigned int_points = 701;
-    static constexpr unsigned int_pot_points = 11;
-    static constexpr size_t N = H / pot_step + 1;
-    double V = 0.0;
-    bool isVCalculated = false;
-    std::vector<Column> model;
-
-    /// This is a function that calculates an ionosphere potential
-    double calc_ip()
-    {
-        std::vector<double> area_by_int(model.size());
-        std::vector<double> int_of_cur_by_cond(model.size());
-        for (unsigned i = 0; i < model.size(); ++i) {
-            area_by_int[i] = model[i].area / integrate_Simpson([this, i](double z)
-                        { return 1.0 / model[i].conductivity(z); },
-                    0.0,
-                    H,
-                    int_points);
-            int_of_cur_by_cond[i] = integrate_Simpson([this, i](double z)
-                        { return model[i].current(z) / model[i].conductivity(z); },
-                    0.0,
-                    H,
-                    int_points);
-        }
-        double up = 0.0, down = 0.0;
-        for (unsigned i = 0; i < model.size(); ++i) {
-            up += area_by_int[i] * (int_of_cur_by_cond[i] - model[i].bound_val);
-            down += area_by_int[i];
-        }
-        return up / down;
-    }
-
-    /// This is a function that calculates the potential on the i * pot_step
-    std::array<double, N> calc_pot(unsigned column_num)
-    {
-        std::array<double, N> vec{};
-        double I1 = 0.0, I2 = 0.0, C1, C2;
-        C1 = integrate_Simpson([this, column_num](double z)
-                { return 1.0 / model[column_num].conductivity(z); },
-                0.0, H, int_points);
-        C2 = integrate_Simpson([this, column_num](double z)
-                { return model[column_num].current(z) / model[column_num].conductivity(z); },
-                0.0, H, int_points);
-        std::array<double, N> h{};
-        for (unsigned n = 0; n < N; ++n) {
-            h[n] = n * pot_step;
-        }
-        for (unsigned n = 1; n < N; ++n) {
-            I1 += integrate_Simpson([this, column_num](double z)
-                    { return model[column_num].current(z) / model[column_num].conductivity(z); },
-                    h[n - 1], h[n], int_pot_points);
-            I2 += integrate_Simpson([this, column_num](double z)
-                    { return 1.0 / model[column_num].conductivity(z); },
-                    h[n - 1], h[n], int_pot_points);
-            vec[n] = I1 - I2 * (C2 - model[column_num].bound_val - getIP()) / C1;
-        }
-        return vec;
-    }
-
-public:
-    explicit GECModel() = default;
-    double getIP()
-    {
-        if (not isVCalculated) {
-            V = calc_ip();
-            isVCalculated = true;
-        }
-        return V;
-    }
-
-    [[maybe_unused]] void getPot(const std::string& filename, unsigned column_num)
-    {
-        std::array<double, N> vec = calc_pot(column_num);
-        std::ofstream fout(filename);
-        if (!fout.is_open()) {
-            std::cout << "Impossible to find a file" << std::endl;
-            exit(-1);
-        }
-        for (unsigned n = 1; n < N; ++n) {
-            fout << n * pot_step << "\t" << vec[n] << std::endl;
-        }
-        fout.close();
-    }
-};
-
-/// It is the latitude and longitude grid with the parametrization you want
-template <class Cond, class Curr, class BoundVal>
-class [[maybe_unused]] GeoModel : public GECModel {
-protected:
-    static constexpr double earth_radius2 = 6370.0*6370.0; ///< km^2
+    static constexpr double earth_radius2 = 6370.0 * 6370.0; ///< km^2
     unsigned N, M;
     double delta_lat, delta_lon;
-    double cell_area(unsigned n, unsigned m, double d_lat, double d_lon)
-    {
+
+public:
+    void set_N(unsigned n){
+        N = n;
+    }
+    void set_M(unsigned m){
+        M = m;
+    }
+    void set_delta_lat(double lat){
+        delta_lat = lat;
+    }
+    void set_delta_lon(double lon){
+        delta_lon = lon;
+    }
+
+    unsigned get_N() const{
+        return N;
+    }
+    unsigned get_M() const{
+        return M;
+    }
+    double get_delta_lat() const{
+        return delta_lat;
+    }
+    double get_delta_lon() const{
+        return delta_lon;
+    }
+
+    double cell_area(unsigned n, unsigned m, double d_lat, double d_lon) {
         double lat_n = -90.0 + d_lat * n;
-        if (n != N-1 and m != M-1) {
-            return fabs(earth_radius2 * M_PI / 180.0 * d_lon * (sin(M_PI / 180.0 * (lat_n + d_lat)) - sin(M_PI / 180.0 * lat_n)));
+        if (n != N - 1 and m != M - 1) {
+            return fabs(earth_radius2 * M_PI / 180.0 * d_lon *
+                        (sin(M_PI / 180.0 * (lat_n + d_lat)) - sin(M_PI / 180.0 * lat_n)));
         } else {
-            if (m == M-1) {
-                return fabs(earth_radius2 * M_PI / 180.0 * (360.0 - m * d_lon) * (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n)));
+            if (m == M - 1) {
+                return fabs(earth_radius2 * M_PI / 180.0 * (360.0 - m * d_lon) *
+                            (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n)));
             } else {
-                return fabs(earth_radius2 * M_PI / 180.0 * d_lon * (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n)));
+                return fabs(
+                        earth_radius2 * M_PI / 180.0 * d_lon * (sin(M_PI / 180.0 * 90.0) - sin(M_PI / 180.0 * lat_n)));
             }
         }
     }
 
-    double lat_arg(unsigned n, double d_lat)
-    {
+    double lat_arg(unsigned n, double d_lat) {
         double lat_n = -90.0 + d_lat * n;
-        if (n == N-1) {
+        if (n == N - 1) {
             return 0.5 * (lat_n + 90.0);
         } else {
             return lat_n + 0.5 * d_lat;
         }
     }
 
-    double lon_arg(unsigned m, double d_lon)
-    {
+    double lon_arg(unsigned m, double d_lon) {
         double lon_m = d_lon * m;
-        if (m == M-1) {
+        if (m == M - 1) {
             return 0.5 * (lon_m + 360.0);
         } else {
             return lon_m + 0.5 * d_lon;
         }
     }
 
-    double lon_arg_m(double lon_arg_, double lat_arg_)
-    {
+    double lon_arg_m(double lon_arg_, double lat_arg_) {
         double lat_m, lon_m, alt_m;
-        gdz_to_mag(2016, lat_arg_, lon_arg_, 10.0, lat_m, lon_m, alt_m);
+        gdz_to_mag(2015.9, lat_arg_, lon_arg_, 10.0, lat_m, lon_m, alt_m);
         return lon_m;
     }
 
-    double lat_arg_m(double lon_arg_, double lat_arg_)
-    {
+    double lat_arg_m(double lon_arg_, double lat_arg_) {
         double lat_m, lon_m, alt_m;
-        gdz_to_mag(2016, lat_arg_, lon_arg_, 10.0, lat_m, lon_m, alt_m);
+        gdz_to_mag(2015.9, lat_arg_, lon_arg_, 10.0, lat_m, lon_m, alt_m);
         return lat_m;
     }
+};
 
+
+/// It is the latitude and longitude grid with the parametrization you want
+template <class Cond, class Curr, class BoundVal>
+class [[maybe_unused]] GeoGrid : public ParentGrid, public GECModel {
 public:
-    GeoModel(double arg1, double arg2, bool K)
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "cppcoreguidelines-narrowing-conversions"
+    GeoGrid(double arg1, double arg2, bool K)
     {
             if (K) {
-                delta_lat = arg1;
-                delta_lon = arg2;
-                N = std::ceil(180.0 / delta_lat);
-                M = std::ceil(360.0 / delta_lon);
-                model.reserve(N * M);
+                set_delta_lat(arg1);
+                set_delta_lon(arg2);
+                set_N(std::ceil(180.0 / get_delta_lat()));
+                set_M(std::ceil(360.0 / get_delta_lon()));
+                model.reserve(get_N() * get_M());
             } else {
-                N = arg1;
-                M = arg2;
-                model.reserve(N * M);
-                delta_lat = 180.0 / N;
-                delta_lon = 360.0 / M;
-            }                 //mb reserve( (N-1) * (M-1) )
+                set_N(arg1);
+                set_M(arg2);
+                model.reserve(get_N() * get_M());
+                set_delta_lat(180.0 / get_N());
+                set_delta_lon(360.0 / get_M());
+            }
             double lat_n = -90.0;
-            for (unsigned n = 0; n < N; ++n) {
+            for (unsigned n = 0; n < get_N(); ++n) {
                 lat_n =+ delta_lat * n;
-                for (unsigned m = 0; m < M; ++m) {
-                    model.push_back({ cell_area(n, m, delta_lat, delta_lon),
+                for (unsigned m = 0; m < get_M(); ++m) {
+                    model.push_back({ cell_area(n, m, get_delta_lat(), get_delta_lon()),
                                       [this, n, m](double z)
                                         {return Cond::sigma(z,
                                                             lat_arg_m(lon_arg(m, delta_lon),
@@ -311,22 +366,72 @@ public:
                                       [n, this](double z){return Curr::j(z, lat_arg(n, delta_lat));},
                                       BoundVal::phi_s(lat_arg(n, delta_lat), lon_arg(m, delta_lon))
                                     });
+
                 }
             }
     }
+#pragma clang diagnostic pop
 };
 
-/// \brief main
-/// \return IP
+class GeoGridNickolay : public ParentGrid, public Conductivity, public GeoJ, public ZeroPhiS {
+private:
+    static constexpr double k = 1.0;
+public:
+    GeoGridNickolay(int t)
+    {
+        set_delta_lat(1.0);
+        set_delta_lon(1.0);
+        set_N(180);
+        set_M(360);
+        model.reserve(2 * get_N() * get_M());
+        double lat_n = -90.0;
+        for (unsigned n = 0; n < get_N(); ++n) {
+            lat_n = +delta_lat * n;
+            for (unsigned m = 0; m < get_M(); ++m) {
+                model.push_back({cell_area(n, m, get_delta_lat(), get_delta_lon()) * (1 - k * alpha_[t, n, m]),
+                                 [this, n, m](double z) {
+                                     return Conductivity::sigma(z,
+                                                                lat_arg_m(lon_arg(m, delta_lon),
+                                                                          lat_arg(n, delta_lat)),
+                                                                0.5);
+                                 },
+                                 [n, this](double z) { return ZeroJ::j(); },
+                                 ZeroPhiS::phi_s(lat_arg(n, delta_lat), lon_arg(m, delta_lon))
+                                });
+                model.push_back({cell_area(n, m, get_delta_lat(), get_delta_lon()) * k * alpha_[t, n, m],
+                                 [this, n, m](double z) {
+                                     return Conductivity::sigma(z,
+                                                                lat_arg_m(lon_arg(m, delta_lon),
+                                                                          lat_arg(n, delta_lat)),
+                                                                0.5);
+                                 },
+                                 [n, m, t, this](double z) { return GeoJ::j(z, t, n, m); },
+                                 ZeroPhiS::phi_s(lat_arg(n, delta_lat), lon_arg(m, delta_lon))
+                                });
+            }
+        }
+    }
+};
+
 int main()
 {
-    GeoModel<Conductivity, StepJ, ZeroPhiS> m(10.0, 10.0, true);
+    std::ofstream fout("plots/diurnal_variation.txt");
+    if (!fout.is_open()) {
+        std::cout << "Impossible to find a file" << std::endl;
+        exit(-1);
+    }
+    for (int i = 1; i <= 48; i++) {
+        GeoGridNickolay m(i);
+        fout << i << '\t' << m.getIP() << '\n';
+    }
+    fout.close();
+    return EXIT_SUCCESS;
+}
+    //GeoGrid<Conductivity, SimpleGeoJ, ZeroPhiS> m(1.0, 1.0, true);
     //m.getPot("plots/potential_2_columns.txt", 180*180);
-    std::cout << "Ionosphere potential is " << m.getIP() << " [kV]" << std::endl;
+    //std::cout << "Ionosphere potential is " << m.getIP() << " [kV]" << std::endl;
     /*double latm, longm, altm;
     gdz_to_mag(2020.2, 50.0, 50.0, 10.0, latm, longm, altm);
     std::cout << "latm = " << latm << "\n"
               << "longm = " << longm << "\n"
               << "altm = " << altm << "\n";*/
-    return EXIT_SUCCESS;
-}
