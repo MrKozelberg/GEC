@@ -1,0 +1,10 @@
+CMakeFiles/
+CMakeCache.txt
+*.swp
+Makefile
+*.cmake
+example1
+install_manifest.txt
+*.a
+*.so
+
