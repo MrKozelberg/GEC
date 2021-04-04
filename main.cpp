@@ -112,7 +112,7 @@ public:
         fout.close();
     }
     //input DATA
-    cnpy::npz_t data = cnpy::npz_load("DATA-2015-12-31-00-new.npz");
+    cnpy::npz_t data = cnpy::npz_load("data/DATA-2015-12-31-00-new.npz");
     cnpy::NpyArray cape_arr = data["cape"];
     cnpy::NpyArray cbot_arr = data["cbot"];
     cnpy::NpyArray ctop_arr = data["ctop"];
