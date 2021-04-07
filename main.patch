@@ -1,0 +1,10 @@
+--- main.cpp	2021-04-07 15:28:37.395578024 +0300
++++ main1.cpp	2021-04-07 15:31:57.386264705 +0300
+@@ -2,7 +2,6 @@
+ #include <ctime>
+ #include <cstdlib>
+ #include <functional>
+-#include <fstream>
+ #include "cnpy/cnpy.h"
+ #include <iostream>
+ #include <string>

@@ -1,4 +1,6 @@
 Global_Electric_Circuit
+*.npz
+*.npy
 CMakeFiles/
 *.txt
 *.txt.user
