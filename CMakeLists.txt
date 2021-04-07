@@ -32,4 +32,7 @@ target_link_libraries(Global_Electric_Circuit
         irbem
         cnpy
         )
+
+find_package(cnpy)
+
 target_include_directories(Global_Electric_Circuit SYSTEM PUBLIC ${Boost_INCLUDE_DIR})
