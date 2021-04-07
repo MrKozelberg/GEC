@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+
 #include "integral.h"
 #include "sigma.h"
 #include "geomagnetic.h"
@@ -112,12 +113,16 @@ public:
         fout.close();
     }
     //input DATA
-    cnpy::npz_t data = cnpy::npz_load("data/DATA-2015-12-31-00-new.npz");
+    // py_array[n,m,k] is cpp_array[n*180*360 + m*360 + k]
+    // CHECK datatypes of npy-files!
+    // '<f8' is an equivalent of double
+    // '<f4' is an equivalent of float
+    cnpy::npz_t data = cnpy::npz_load("data/DATA-2015-12-31-00.npz");
     cnpy::NpyArray cape_arr = data["cape"];
     cnpy::NpyArray cbot_arr = data["cbot"];
     cnpy::NpyArray ctop_arr = data["ctop"];
-    cnpy::NpyArray alpha_arr = data["alpha"];
-    double_t* cape = cape_arr.data<double>();
+    cnpy::NpyArray alpha_arr = cnpy::npy_load("data/alpha.npy");
+    float_t* cape = cape_arr.data<float>();
     double_t* cbot = cbot_arr.data<double>();
     double_t* ctop = ctop_arr.data<double>();
     double_t* alpha_ = alpha_arr.data<double>();
@@ -198,9 +203,9 @@ private:
     static constexpr double cape_0 = 1'000; // J/kg
 public:
     double j(double z, int t, unsigned lat, unsigned lon) {
-        return GECModel::cape[t, lat, lon] < cape_0
-               || GECModel::cbot[t, lat, lon] >= z * 1'000
-               || GECModel::ctop[t, lat, lon] <= z * 1'000 ? 0 : j_0;
+        return GECModel::cape[t*180*360 + lat*360 + lon] < cape_0
+               || GECModel::cbot[t*180*360 + lat*360 + lon] >= z * 1'000
+               || GECModel::ctop[t*180*360 + lat*360 + lon] <= z * 1'000 ? 0 : j_0;
     }
 };
 
@@ -385,7 +390,7 @@ public:
         for (unsigned n = 0; n < get_N(); ++n) {
             lat_n = +delta_lat * n;
             for (unsigned m = 0; m < get_M(); ++m) {
-                model.push_back({cell_area(n, m, get_delta_lat(), get_delta_lon()) * (1 - k * alpha_[t, n, m]),
+                model.push_back({cell_area(n, m, get_delta_lat(), get_delta_lon()) * (1 - k * alpha_[t*360*180 + n*360 + m]),
                                  [this, n, m](double z) {
                                      return Conductivity::sigma(z,
                                                                 lat_arg_m(lon_arg(m, delta_lon),
@@ -395,7 +400,7 @@ public:
                                  [n, this](double z) { return ZeroJ::j(); },
                                  ZeroPhiS::phi_s(lat_arg(n, delta_lat), lon_arg(m, delta_lon))
                                 });
-                model.push_back({cell_area(n, m, get_delta_lat(), get_delta_lon()) * k * alpha_[t, n, m],
+                model.push_back({cell_area(n, m, get_delta_lat(), get_delta_lon()) * k * alpha_[t*360*180 + n*360 + m],
                                  [this, n, m](double z) {
                                      return Conductivity::sigma(z,
                                                                 lat_arg_m(lon_arg(m, delta_lon),
@@ -413,23 +418,8 @@ public:
 int main()
 {
     GeoGrid<Conductivity, SimpleGeoJ, ZeroPhiS> m(1.0, 1.0, true);
-    m.getPot("plots/potential_2_columns_sourse.txt", 90*360);
-    //std::cout << "Ionosphere potential is " << m.getIP() << " [kV]" << std::endl;
-
-// py_array[n,m,k] is cpp_array[n*180*360 + m*360 + k]
-// but it doesn't work with cape and alpha
-/*
-    cnpy::npz_t data = cnpy::npz_load("data/DATA-2015-12-31-00-new.npz");
-    cnpy::NpyArray cape_arr = data["cape"];
-    cnpy::NpyArray cbot_arr = data["cbot"];
-    cnpy::NpyArray ctop_arr = data["ctop"];
-    cnpy::NpyArray alpha_arr = data["alpha"];
-    double_t* cape = cape_arr.data<double>();
-    double_t* cbot = cbot_arr.data<double>();
-    double_t* ctop = ctop_arr.data<double>();
-    double_t* alpha_ = alpha_arr.data<double>();
-    std::cout << cbot[3*180*360 + 2*360 + 1] << '\n';
-*/
+    //m.getPot("plots/potential_2_columns_sourse.txt", 90*360);
+    std::cout << "Ionosphere potential is " << m.getIP() << " [kV]" << std::endl;
 
     /*std::ofstream fout("plots/diurnal_variation.txt");
     if (!fout.is_open()) {
