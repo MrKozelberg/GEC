@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include <functional>
 #include <fstream>
-#include "cnpy.h"
+#include "cnpy/cnpy.h"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -335,8 +335,6 @@ public:
 template <class Cond, class Curr, class BoundVal>
 class [[maybe_unused]] GeoGrid : public ParentGrid, public GECModel {
 public:
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "cppcoreguidelines-narrowing-conversions"
     GeoGrid(double arg1, double arg2, bool K)
     {
             if (K) {
@@ -370,7 +368,6 @@ public:
                 }
             }
     }
-#pragma clang diagnostic pop
 };
 
 class GeoGridNickolay : public ParentGrid, public Conductivity, public GeoJ, public ZeroPhiS {
@@ -415,16 +412,38 @@ public:
 
 int main()
 {
-    std::ofstream fout("plots/diurnal_variation.txt");
+    GeoGrid<Conductivity, SimpleGeoJ, ZeroPhiS> m(1.0, 1.0, true);
+    m.getPot("plots/potential_2_columns_sourse.txt", 90*360);
+    //std::cout << "Ionosphere potential is " << m.getIP() << " [kV]" << std::endl;
+
+// py_array[n,m,k] is cpp_array[n*180*360 + m*360 + k]
+// but it doesn't work with cape and alpha
+/*
+    cnpy::npz_t data = cnpy::npz_load("data/DATA-2015-12-31-00-new.npz");
+    cnpy::NpyArray cape_arr = data["cape"];
+    cnpy::NpyArray cbot_arr = data["cbot"];
+    cnpy::NpyArray ctop_arr = data["ctop"];
+    cnpy::NpyArray alpha_arr = data["alpha"];
+    double_t* cape = cape_arr.data<double>();
+    double_t* cbot = cbot_arr.data<double>();
+    double_t* ctop = ctop_arr.data<double>();
+    double_t* alpha_ = alpha_arr.data<double>();
+    std::cout << cbot[3*180*360 + 2*360 + 1] << '\n';
+*/
+
+    /*std::ofstream fout("plots/diurnal_variation.txt");
     if (!fout.is_open()) {
         std::cout << "Impossible to find a file" << std::endl;
         exit(-1);
     }
-    for (int i = 1; i <= 48; i++) {
+    int i = 30;
+    GeoGridNickolay m(i);
+    fout << i << '\t' << m.getIP() << '\n';
+    /*for (int i = 1; i <= 48; i++) {
         GeoGridNickolay m(i);
         fout << i << '\t' << m.getIP() << '\n';
     }
-    fout.close();
+    fout.close();*/
     return EXIT_SUCCESS;
 }
     //GeoGrid<Conductivity, SimpleGeoJ, ZeroPhiS> m(1.0, 1.0, true);
