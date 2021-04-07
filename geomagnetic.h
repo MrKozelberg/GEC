@@ -26,3 +26,5 @@ void gdz_to_mag(double dyear,
 double geomag_lat_by_gzd(double dyear, double lat, double lon, double alt=0.0);
 
 void dtd(double x, double y, double z, double &Bx, double &By, double &Bz);
+
+void init_dtd(double year);

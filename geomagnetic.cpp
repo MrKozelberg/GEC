@@ -32,6 +32,9 @@ extern "C"
     void dtd_(double *x, double *y, double *z, double *Bx, double *By, double *Bz);
 }
 
+void init_dtd(double year) {
+    init_dtd_(&year);
+}
 
 /** geomagnetic coordinates by geodetic coordinates
  *
@@ -50,7 +53,7 @@ void gdz_to_mag(double dyear,
     double xGEO[3], xMAG[3];
 
     gdz_geo_(&lati, &longi, &alti, &xGEO[0], &xGEO[1], &xGEO[2]);
-    init_dtd_(&dyear);
+//    init_dtd_(&dyear);
     geo_mag_(xGEO, xMAG);
 
     car_sph_(xMAG, &altm, &latm, &longm);

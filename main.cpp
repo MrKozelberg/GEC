@@ -417,8 +417,10 @@ public:
 
 int main()
 {
+    init_dtd(2021);
+
     GeoGrid<Conductivity, SimpleGeoJ, ZeroPhiS> m(1.0, 1.0, true);
-    //m.getPot("plots/potential_2_columns_sourse.txt", 90*360);
+    // m.getPot("plots/potential_2_columns_sourse.txt", 90*360);
     std::cout << "Ionosphere potential is " << m.getIP() << " [kV]" << std::endl;
 
     /*std::ofstream fout("plots/diurnal_variation.txt");
