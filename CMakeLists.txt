@@ -23,9 +23,9 @@ add_executable(Global_Electric_Circuit
         integral.cpp
         integral.h
         std_atm.h
-        sigma.h
         geomagnetic.cpp
-        geomagnetic.h)
+        geomagnetic.h
+        conductivity.h)
 
 target_link_libraries(Global_Electric_Circuit
         PUBLIC ${Boost_LIBRARIES}

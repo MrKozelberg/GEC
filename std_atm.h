@@ -2,11 +2,6 @@
 #define STDATM_H
 
 #include <cmath>
-#include <fstream>
-#include <functional>
-#include <iostream>
-#include <string>
-#include <vector>
 
 ///It calculates a geopotential altitude from a geometric altitude [km]
 /// |DEF| Geometric height is an altitude above mean sea level.
@@ -28,22 +23,14 @@ private:
     constexpr static double M = 28.9644;
     constexpr static double g = 9.80665;
     constexpr static double z[7] = { 0.0, 11.0, 20.0, 32.0, 47.0, 51.0, 70.0 };
-    double T[7]{}, p[7]{};
+    constexpr static double T[7] = { T_0, 216.65, 216.65, 228.65, 270.65, 270.65, 217.45 };
+    constexpr static double p[7] = { p_0, 22632.1, 5474.89, 868.019, 110.906, 66.9389, 4.63422 };
     constexpr static double gamma[7] = { 0.0, -6.5, 0.0, 1.0, 2.8, 0.0, -2.8 };
+
 
 public:
     StdAtm()
     {
-        T[0] = T_0;
-        p[0] = p_0;
-        for (size_t n = 1; n < 7; ++n) {
-            T[n] = T[n - 1] + gamma[n] * (z[n] - z[n - 1]);
-            if (gamma[n] == 0.0) {
-                p[n] = p[n - 1] * exp(-g * M * (z[n] - z[n - 1]) / (R * T[n - 1]));
-            } else {
-                p[n] = p[n - 1] * pow((1.0 + gamma[n] * (z[n] - z[n - 1]) / T[n - 1]), -g * M / (gamma[n] * R));
-            }
-        }
     };
 
     double temperature(double H)
