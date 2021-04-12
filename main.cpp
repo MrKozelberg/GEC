@@ -374,12 +374,19 @@ public:
 };
 
 int main() {
-    //init_dtd(2021);
-
-    GeoGrid<Conductivity, SimpleGeoJ, ZeroPhiS> m(1.0, 1.0, true, 2021.0);
+    std::ofstream fout("plots/annual_variation.txt");
+    if (!fout.is_open()) {
+        std::cout << "Impossible to find a file" << std::endl;
+        exit(-1);
+    }
+    for (double i = 2008; i <= 2021.0; i++) {
+        GeoGrid<Conductivity, SimpleGeoJ, ZeroPhiS> m(1.0, 1.0, true, i);
+        fout << i << "\t" << m.getIP() << "\n";
+    }
+    fout.close();
+    //GeoGrid<Conductivity, SimpleGeoJ, ZeroPhiS> m(1.0, 1.0, true, 2021.0);
     // m.getPot("plots/potential_2_columns_sourse.txt", 90*360);
-    std::cout << "Ionosphere potential is " << m.getIP() << " [kV]" << std::endl;
-
+    //std::cout << "Ionosphere potential is " << m.getIP() << " [kV]" << std::endl;
     /*std::ofstream fout("plots/diurnal_variation.txt");
     if (!fout.is_open()) {
         std::cout << "Impossible to find a file" << std::endl;
