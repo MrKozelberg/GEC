@@ -29,11 +29,9 @@ private:
 
 
 public:
-    StdAtm()
-    {
-    };
+    StdAtm() = default;;
 
-    double temperature(double H)
+    static double temperature(double H)
     {
         double zeta = gp_from_geom(H);
         size_t n = 0;
@@ -47,7 +45,7 @@ public:
         }
         return T[n - 1] + gamma[n] * (zeta - z[n - 1]);
     }
-    double pressure(double H)
+    static double pressure(double H)
     {
         double alt = gp_from_geom(H);
         size_t n = 6;
