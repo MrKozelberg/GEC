@@ -10,33 +10,31 @@
 #include <cassert>
 #include "std_atm.h"
 
-class IonMobility
-{
+class IonMobility {
 private:
     constexpr static double mu0_p = 1.4E-4; // m^2/(V*s)
     constexpr static double mu0_m = 1.9E-4; // m^2/(V*s)
     constexpr static double T_mu = 120; // K
     constexpr static double T_0 = 288.15; // K
     constexpr static double p_0 = 101325; // Pa
-    static double common_factor(double T, double p)
-    {
-        return p_0 / p * std::pow( T/T_0, 1.5 ) * ( T_0 + T_mu ) / ( T + T_mu );
+    static double common_factor(double T, double p) {
+        return p_0 / p * std::pow(T / T_0, 1.5) * (T_0 + T_mu) / (T + T_mu);
     }
+
 public:
     IonMobility() = default;
-    static double mu_p_get(double T, double p)
-    {
-        return mu0_p * common_factor( T, p );
+
+    static double mu_p_get(double T, double p) {
+        return mu0_p * common_factor(T, p);
     }
-    static double mu_m_get(double T, double p)
-    {
-        return mu0_m * common_factor( T, p );
+
+    static double mu_m_get(double T, double p) {
+        return mu0_m * common_factor(T, p);
     }
 
 };
 
-class IonIonRecombCoeff
-{
+class IonIonRecombCoeff {
 private:
     constexpr static double A = 6E-14; // m^3/s
     constexpr static double B_1 = 1.702E-12; // m^3/s
@@ -55,24 +53,23 @@ private:
     constexpr static double k = 1.380649E-23; // J/K
 public:
     IonIonRecombCoeff() = default;
-    static double alpha(double z, double p, double T)
-    {
-        assert( z>=0 );
+
+    static double alpha(double z, double p, double T) {
+        assert(z >= 0);
         if (z < z_1) {
-            return A * std::sqrt( T_0 / T ) + B_1 * std::pow( T_0 / T, b_1 ) * std::pow( p / ( k * T * N_0 ), c_1 );
+            return A * std::sqrt(T_0 / T) + B_1 * std::pow(T_0 / T, b_1) * std::pow(p / (k * T * N_0), c_1);
         }
-        if ( z >= z_1 && z < z_2 ) {
-            return A * std::sqrt( T_0 / T ) + B_2 * std::pow( T_0 / T, b_2 ) * std::pow( p / ( k * T * N_0 ), c_2 );
+        if (z >= z_1 && z < z_2) {
+            return A * std::sqrt(T_0 / T) + B_2 * std::pow(T_0 / T, b_2) * std::pow(p / (k * T * N_0), c_2);
         }
-        if ( z >= z_2 ) {
-            return A * std::sqrt( T_0 / T ) + B_3 * std::pow( T_0 / T, b_3 ) * std::pow( p / ( k * T * N_0 ), c_3 );
+        if (z >= z_2) {
+            return A * std::sqrt(T_0 / T) + B_3 * std::pow(T_0 / T, b_3) * std::pow(p / (k * T * N_0), c_3);
         }
         return EXIT_FAILURE;
     }
 };
 
-class IonPairProdRate
-{
+class IonPairProdRate {
 private:
     constexpr static double A_0 = 49 * M_PI / 180;
     constexpr static double A_1 = 49 * M_PI / 180;
@@ -136,12 +133,12 @@ private:
     constexpr static double h_3 = 3.2;
     constexpr static double h_4 = 3.4;
     constexpr static double h_5 = 4;
-    static double Lambda(double lambda, double lambda_0)
-    {
-        return ( std::fabs(lambda) < lambda_0 ) ? std::fabs(lambda) : lambda_0;
+
+    static double Lambda(double lambda, double lambda_0) {
+        return (std::fabs(lambda) < lambda_0) ? std::fabs(lambda) : lambda_0;
     }
-    static double Q(double z, double lambda, double xi)
-    {
+
+    static double Q(double z, double lambda, double xi) {
         assert(z >= 0);
         // mb optimize this place
         const double K_0 = A_0 - a_0 * xi;
@@ -167,91 +164,54 @@ private:
         const double delta_U_3 = D_3 - d_3 * xi;
         const double delta_U_4 = D_4 - d_4 * xi;
         const double delta_U_5 = D_5 - d_5 * xi;
-        const double Z_1 = H_1 + delta_H_1 * std::pow( std::sin( Lambda( lambda, K_1 ) ) / std::sin( K_1 ), g_1 );
-        const double Z_2 = H_2 + delta_H_2 * std::pow( std::sin( Lambda( lambda, K_2 ) ) / std::sin( K_2 ), g_2 );
-        const double Z_3 = H_3 + delta_H_3 * std::pow( std::sin( Lambda( lambda, K_3 ) ) / std::sin( K_3 ), g_3 );
-        const double Z_4 = H_4 + delta_H_4 * std::pow( std::sin( Lambda( lambda, K_4 ) ) / std::sin( K_4 ), g_4 );
-        const double Z_5 = H_5 + delta_H_5 * std::pow( std::sin( Lambda( lambda, K_5 ) ) / std::sin( K_5 ), g_5 );
-        const double Q_0 = U_0 + delta_U_0 * std::pow( std::sin( Lambda( lambda, K_0 ) ) / std::sin( K_0 ), h_0 );
-        const double Q_1 = U_1 + delta_U_1 * std::pow( std::sin( Lambda( lambda, K_1 ) ) / std::sin( K_1 ), h_1 );
-        const double Q_2 = U_2 + delta_U_2 * std::pow( std::sin( Lambda( lambda, K_2 ) ) / std::sin( K_2 ), h_2 );
-        const double Q_3 = U_3 + delta_U_3 * std::pow( std::sin( Lambda( lambda, K_3 ) ) / std::sin( K_3 ), h_3 );
-        const double Q_4 = U_4 + delta_U_4 * std::pow( std::sin( Lambda( lambda, K_4 ) ) / std::sin( K_4 ), h_4 );
-        const double Q_5 = U_5 + delta_U_5 * std::pow( std::sin( Lambda( lambda, K_5 ) ) / std::sin( K_5 ), h_5 );
-        const double P_1 = Q_1 * std::log( Q_1 / Q_0 ) / Z_1;
-        const double P_2 = 2 * ( Q_2 - Q_1 ) / ( Z_2 - Z_1 ) - P_1;
-        const double P_4 = 3 * ( Q_4 - Q_5 ) / ( Z_5 - Z_4 );
-        const double A_Q = ( ( Q_2 - Q_1 ) - P_1 * ( Z_2 - Z_1 ) ) / ( Z_2 - Z_1 ) / ( Z_2 - Z_1 );
-        const double B_Q = Q_1 - P_1 * P_1 * ( Z_2 - Z_1 ) * ( Z_2 - Z_1 ) / 4 / ( Q_2 - Q_1 - P_1 * ( Z_2 - Z_1 ) );
-        const double C_Q = ( 2 * ( Q_2  - Q_1 ) * Z_1 - P_1 * ( Z_2 * Z_2 - Z_1 * Z_1 ) ) / 2 / ( Q_2 - Q_1 - P_1 * ( Z_2 - Z_1 ) );
-        if ( z < Z_1 ) {
-            return Q_0 * std::pow( Q_1 / Q_0, z / Z_1 );
+        const double Z_1 = H_1 + delta_H_1 * std::pow(std::sin(Lambda(lambda, K_1)) / std::sin(K_1), g_1);
+        const double Z_2 = H_2 + delta_H_2 * std::pow(std::sin(Lambda(lambda, K_2)) / std::sin(K_2), g_2);
+        const double Z_3 = H_3 + delta_H_3 * std::pow(std::sin(Lambda(lambda, K_3)) / std::sin(K_3), g_3);
+        const double Z_4 = H_4 + delta_H_4 * std::pow(std::sin(Lambda(lambda, K_4)) / std::sin(K_4), g_4);
+        const double Z_5 = H_5 + delta_H_5 * std::pow(std::sin(Lambda(lambda, K_5)) / std::sin(K_5), g_5);
+        const double Q_0 = U_0 + delta_U_0 * std::pow(std::sin(Lambda(lambda, K_0)) / std::sin(K_0), h_0);
+        const double Q_1 = U_1 + delta_U_1 * std::pow(std::sin(Lambda(lambda, K_1)) / std::sin(K_1), h_1);
+        const double Q_2 = U_2 + delta_U_2 * std::pow(std::sin(Lambda(lambda, K_2)) / std::sin(K_2), h_2);
+        const double Q_3 = U_3 + delta_U_3 * std::pow(std::sin(Lambda(lambda, K_3)) / std::sin(K_3), h_3);
+        const double Q_4 = U_4 + delta_U_4 * std::pow(std::sin(Lambda(lambda, K_4)) / std::sin(K_4), h_4);
+        const double Q_5 = U_5 + delta_U_5 * std::pow(std::sin(Lambda(lambda, K_5)) / std::sin(K_5), h_5);
+        const double P_1 = Q_1 * std::log(Q_1 / Q_0) / Z_1;
+        const double P_2 = 2 * (Q_2 - Q_1) / (Z_2 - Z_1) - P_1;
+        const double P_4 = 3 * (Q_4 - Q_5) / (Z_5 - Z_4);
+        const double A_Q = ((Q_2 - Q_1) - P_1 * (Z_2 - Z_1)) / (Z_2 - Z_1) / (Z_2 - Z_1);
+        const double B_Q = Q_1 - P_1 * P_1 * (Z_2 - Z_1) * (Z_2 - Z_1) / 4 / (Q_2 - Q_1 - P_1 * (Z_2 - Z_1));
+        const double C_Q =
+                (2 * (Q_2 - Q_1) * Z_1 - P_1 * (Z_2 * Z_2 - Z_1 * Z_1)) / 2 / (Q_2 - Q_1 - P_1 * (Z_2 - Z_1));
+        if (z < Z_1) {
+            return Q_0 * std::pow(Q_1 / Q_0, z / Z_1);
         }
-        if ( z >= Z_1 && z < Z_2 ) {
-            return B_Q + A_Q * ( z - C_Q ) * ( z - C_Q );
+        if (z >= Z_1 && z < Z_2) {
+            return B_Q + A_Q * (z - C_Q) * (z - C_Q);
         }
-        if ( z >= Z_2 && z < Z_3 ) {
-            return Q_3 - ( Q_3 - Q_2 ) * std::pow( ( Z_3 - z ) / ( Z_3 - Z_2 ), P_2 * ( Z_3 - Z_2 ) / ( Q_3 - Q_2 ) );
+        if (z >= Z_2 && z < Z_3) {
+            return Q_3 - (Q_3 - Q_2) * std::pow((Z_3 - z) / (Z_3 - Z_2), P_2 * (Z_3 - Z_2) / (Q_3 - Q_2));
         }
-        if ( z >= Z_3 && z < Z_4 ) {
-            return Q_3 - ( Q_3 - Q_4 ) * std::pow( ( z - Z_3 ) / ( Z_4 - Z_3 ), P_4 * ( Z_4 - Z_3 ) / ( Q_3 - Q_4 ) );
+        if (z >= Z_3 && z < Z_4) {
+            return Q_3 - (Q_3 - Q_4) * std::pow((z - Z_3) / (Z_4 - Z_3), P_4 * (Z_4 - Z_3) / (Q_3 - Q_4));
         }
-        if ( z >= Z_4 && z < Z_5 ) {
-            return Q_5 + ( Q_4 - Q_5 ) * std::pow( ( Z_5 - z ) / ( Z_5 - Z_4 ), 3.0 );
+        if (z >= Z_4 && z < Z_5) {
+            return Q_5 + (Q_4 - Q_5) * std::pow((Z_5 - z) / (Z_5 - Z_4), 3.0);
         }
-        if ( z >= Z_5 ) {
+        if (z >= Z_5) {
             return Q_5;
         }
         return EXIT_FAILURE;
     }
+
     constexpr static double T_Q = 297.15; // K
     constexpr static double p_Q = 98658.55232; // Pa
 public:
     IonPairProdRate() = default;
-    static double q(double z, double lambda, double xi, double p, double T)
-    {
-        assert( xi >= 0.0 && xi <= 1.0 );
-        return Q( z, lambda, xi ) * p * T_Q / p_Q / T;
+
+    static double q(double z, double lambda, double xi, double p, double T) {
+        assert(xi >= 0.0 && xi <= 1.0);
+        return Q(z, lambda, xi) * p * T_Q / p_Q / T;
     }
 };
-
-class ParentCond : public IonMobility, public IonPairProdRate, public IonIonRecombCoeff, public StdAtm
-{
-protected:
-    static constexpr double sigma_0 = 5.0e-14;
-    static constexpr double H_0 = 6.0; // km
-    constexpr static double e_0 = 1.602176634e-19; // C
-public:
-    ParentCond() = default;
-};
-
-class Conductivity : public ParentCond
-{
-public:
-    Conductivity() = default;
-    double sigma( double z, double lambda, double xi )
-    {
-        const double T = StdAtm::temperature( z );
-        const double p = StdAtm::pressure( z );
-        const double n = std::sqrt( IonPairProdRate::q( z, lambda, xi, p, T ) / IonIonRecombCoeff::alpha( z, p, T ) );
-        return e_0 * ( IonMobility::mu_p_get(T, p) + IonMobility::mu_m_get(T, p) ) * n;
-    }
-};
-
-class [[maybe_unused]] ExpCond : public ParentCond
-{
-public:
-    static double sigma(double z, ...) {
-        return sigma_0 * std::exp(z / H_0);
-    };
-};
-
-class [[maybe_unused]] ConstSigma : protected ParentCond {
-public:
-    static double sigma(...) {
-        return sigma_0;
-    }
-};
-
 
 #endif //GLOBAL_ELECTRIC_CIRCUIT_CONDUCTIVITY_H

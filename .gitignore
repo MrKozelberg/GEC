@@ -11,6 +11,7 @@ build
 Global_Electric_Circuit.cbp
 
 plots/cond_plot.txt
+plots/annual_variation.txt
 plots/diurnal_variation.txt
 plots/potential_2_columns.txt
 plots/potential_2_columns_sourse.txt

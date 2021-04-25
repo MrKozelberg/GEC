@@ -20,6 +20,8 @@ double integrate_trap(const std::function<double(double)>& f, double a, double b
     return ans;
 }
 
+
+
 double integrate_Simpson( const std::function<double(double)>& f, double a, double b, size_t n )
 {
     try {

@@ -20,12 +20,11 @@ add_library(cnpy SHARED "cnpy/cnpy.cpp")
 
 add_executable(Global_Electric_Circuit
         main.cpp
-        integral.cpp
-        integral.h
         std_atm.h
         geomagnetic.cpp
         geomagnetic.h
-        conductivity.h)
+        conductivity.h
+        )
 
 target_link_libraries(Global_Electric_Circuit
         PUBLIC ${Boost_LIBRARIES}
