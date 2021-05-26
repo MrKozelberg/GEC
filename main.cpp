@@ -417,8 +417,8 @@ public:
 int main()
 {
     GeoGrid<Conductivity, SimpleGeoJ, ZeroPhiS> m(1.0, 1.0, true);
-    //m.getPot("plots/potential_2_columns_sourse.txt", 90*360);
-    std::cout << "Ionosphere potential is " << m.getIP() << " [kV]" << std::endl;
+    m.getPot("plots/phi_1.txt", 2*360*90 + 2*90);
+    //std::cout << "Ionosphere potential is " << m.getIP() << " [kV]" << std::endl;
 
 /// Nickolay's data
     /*std::ofstream fout("plots/diurnal_variation.txt");
