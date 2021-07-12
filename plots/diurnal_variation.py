@@ -2,36 +2,30 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 
-start = 0
-final = 49
+start = 18
+final = 42
 point1 = 18
 point2 = 42
 
 a = np.genfromtxt('diurnal_variation.txt', delimiter='\t')
-
-s = 0
-for i in range(start,final):
-    s += a[i,1]
-s = s / np.size(a[start:final,1])
+p = np.polyfit(a[:,0], a[:,1],1)
+b = np.polyval(p, a[:,0])
 
 fig, ax = plt.subplots()
 
 ax.set_title("Diurnal Variation (2015-12-31)")
 ax.set_xlabel(r'$t$  [hours]')
-ax.set_ylabel(r'')
-ax.set_xlim([0,48])
-ax.set_ylim([0,1.5])
+ax.set_ylabel(r'IP as a fraction of the mean')
+ax.set_xlim([18,42])
+ax.set_ylim([0.95,1.05])
 
-ax.plot(a[start:point1+1, 0], a[start:point1+1,1] / s,'--r',
-        a[point1:point2+1, 0], a[point1:point2+1, 1] / s,'-r',
-        a[point2:final, 0], a[point2:final,1] / s,'--r', linewidth = 2)
-
+ax.plot(a[:,0], (a[:,1] - b + 240) / 240 , '-r', linewidth = 2)
 
 #  Устанавливаем интервал основных и
 #  вспомогательных делений:
 ax.xaxis.set_major_locator(ticker.MultipleLocator(5))
 ax.xaxis.set_minor_locator(ticker.MultipleLocator(1))
-ax.yaxis.set_major_locator(ticker.MultipleLocator(0.5))
+ax.yaxis.set_major_locator(ticker.MultipleLocator(0.05))
 ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.1))
 
 
@@ -46,8 +40,11 @@ ax.minorticks_on()
 ax.grid(which='minor',
         color = 'gray')
 
+
 fig.set_figwidth(12)
 fig.set_figheight(4)
+
+fig.savefig('Diurnal Variation (2015-12-31) 18-42.png', dpi = 300)
 
 plt.show()
 
