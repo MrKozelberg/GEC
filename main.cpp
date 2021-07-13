@@ -29,7 +29,7 @@ constexpr size_t steps = n_1 * size_t(z_1 - z_0) + n_2; ///< total number of poi
  */
 struct Column {
     double area{};
-    double h_grid[steps]{}; ///< array of height points
+    double altitude[steps]{}; ///< array of height points
     double sigma[steps]{}; ///< conductivity
     double j_s[steps]{}; ///< source current
     double phi_s{}; ///< additive IP from different ionospheric sources
@@ -38,7 +38,7 @@ struct Column {
 /*!
  \brief (Parent Height Grid) Parent class for classes of height grids
 
- It is possible to create several parameterizations of height grid
+ It is possible to create several parameterization of height grid
  */
 class ParentHG {
 public:
@@ -56,82 +56,12 @@ class LinHG: public ParentHG {
 public:
     LinHG(): ParentHG() {
         for (size_t i = 0; i < steps; i++) {
-            if (i <= n_1*size_t(z_1)) {
+            if (i <= n_1 * size_t(z_1)) {
                 altitude[i] = i / n_1;
             } else {
                 altitude[i] = (i - n_1 * z_1) * (z_max - z_1) / n_2 + z_1;
-            }
+            };
         }
-    }
-};
-
-/*!
- \brief This class provides possibility to calculate IP and the electric potential vs altitude
-
- \warning The electric potential vs altitude is temporarily unavailable
- */
-class GECModel {
-protected:
-    size_t N, M; ///< dimensions of latitude-longitude grid
-    double delta_lat{}, delta_lon{}; ///< dimensions of latitude-longitude cell
-    std::vector<Column> model;
-private:
-    double IP = 0.0;
-    bool isIPCalculated = false;
-    double help[steps]{}; ///< Help-array is used when calculating the integrals
-
-    /*!
-     \brief IP calculator
-
-     Add formula!
-     */
-    double calc_IP() {
-        double up = 0.0;
-        double down = 0.0;
-        double h = 0.0;
-
-        for (size_t i = 0; i < 2 * N * M; ++i) {
-            double int_curr_by_cond = 0.0;
-            double int_rev_cond = 0.0;
-            // int calc
-            for (size_t q = 0; q < steps-1; ++q) {
-                h = model[i].h_grid[q + 1] - model[i].h_grid[q];
-                int_curr_by_cond += (model[i].j_s[q + 1] / model[i].sigma[q + 1] + model[i].j_s[q] / model[i].sigma[q]) * h / 2;
-                int_rev_cond += (1 / model[i].sigma[q + 1] + 1 / model[i].sigma[q]) * h / 2;
-            }
-            up += model[i].area * int_curr_by_cond / int_rev_cond;
-            down += model[i].area / int_rev_cond;
-        }
-
-        return up / down;
-    }
-
-public:
-
-    /*!
-     It takes N and M, initializes dimensions of cell and help-array
-     */
-    GECModel(size_t N_, size_t M_) {
-        assert(steps % 2 != 0);
-        N = N_;
-        M = M_;
-        delta_lat = 180.0 / N;
-        delta_lon = 360.0 / M;
-        /// initialization of help array
-        double A[2];
-        A[0] = 2;
-        A[1] = 4;
-        for (size_t i = 0; i < steps; ++i) {
-            help[i] = ((i != 0) or (i != steps - 1) ? A[i % 2] : 1);
-        }
-    }
-
-    double get_IP() {
-        if (not isIPCalculated) {
-            IP = calc_IP();
-            isIPCalculated = true;
-        }
-        return IP;
     }
 };
 
@@ -232,11 +162,9 @@ public:
         return sigma_0 * std::exp(z / H_0);
     };
 
-    ExpCond(double lambda, double xi) : ParentConductivity() {
+    ExpCond(...) : ParentConductivity() {
         Alt a{};
-        for (size_t i = 0; i < steps; ++i) {
-            sigma[i] = sigma_func(a.altitude[i], lambda, xi);
-        }
+        for (size_t i = 0; i < steps; ++i) sigma[i] = sigma_func(a.altitude[i]);
     }
 };
 
@@ -325,13 +253,13 @@ template<class Alt>
 class [[maybe_unused]] SimpleGeoCurrent : public ParentCurrent {
 public:
     static double current_func(double z, double lat, ...) {
-        return (std::abs(lat) <= 10) ? StepCurrent<Alt>::current_func(z) : ZeroCurrent<Alt>::current_func(z);
+        return (std::abs(lat) <= 5) ? StepCurrent<Alt>::current_func(z) : ZeroCurrent<Alt>::current_func(z);
     }
 
-    SimpleGeoCurrent(unsigned lat, unsigned lon, double cbot, double ctop, double cape) : ParentCurrent() {
+    SimpleGeoCurrent(unsigned lat, ...) : ParentCurrent() {
         Alt a{};
         for (size_t i = 0; i < steps; ++i) {
-            j[i] = current_func(a.altitude[i], lat, lon, cbot, ctop, cape);
+            j[i] = current_func(a.altitude[i], lat);
         }
     }
 };
@@ -428,7 +356,80 @@ public:
 };
 
 /*!
- \brief Parent class for latitude-longitude partitioning classes
+ \brief This class provides possibility to calculate IP and the electric potential vs altitude
+
+ \warning The electric potential vs altitude is temporarily unavailable
+ */
+class GECModel {
+protected:
+    size_t N, M; ///< dimensions of latitude-longitude grid
+    double delta_lat{}, delta_lon{}; ///< dimensions of latitude-longitude cell
+    std::vector<Column> model;
+private:
+    double IP = 0.0;
+    bool isIPCalculated = false;
+    double help[steps]{}; ///< Help-array is used when calculating the integrals
+
+    /*!
+     \brief IP calculator
+
+     \todo Add formula!
+     */
+    double calc_IP() {
+        double up = 0.0;
+        double down = 0.0;
+        double h = 0.0;
+
+        /*!
+         \warning .capacity() shows how much memory has been reserved for this vector and .size() shows how much memory is being used
+         */
+        for (size_t i = 0; i < model.capacity(); ++i) {
+            double int_curr_by_cond = 0.0;
+            double int_rev_cond = 0.0;
+            // int calc
+            for (size_t q = 1; q < steps; ++q) {
+                h = model[i].altitude[q] - model[i].altitude[q - 1];
+                int_curr_by_cond += (model[i].j_s[q] / model[i].sigma[q] + model[i].j_s[q - 1] / model[i].sigma[q - 1]) * h / 2;
+                int_rev_cond += (1 / model[i].sigma[q] + 1 / model[i].sigma[q - 1]) * h / 2;
+            }
+            up += model[i].area * (int_curr_by_cond - model[i].phi_s) / int_rev_cond;
+            down += model[i].area / int_rev_cond;
+        }
+
+        return up / down;
+    }
+
+public:
+
+    /*!
+     It takes N and M, initializes dimensions of cell and help-array
+     */
+    GECModel(size_t N_, size_t M_) {
+        assert(steps % 2 != 0);
+        N = N_;
+        M = M_;
+        delta_lat = 180.0 / N;
+        delta_lon = 360.0 / M;
+        /// initialization of help array
+        double A[2];
+        A[0] = 2;
+        A[1] = 4;
+        for (size_t i = 0; i < steps; ++i) {
+            help[i] = ((i != 0) or (i != steps - 1) ? A[i % 2] : 1);
+        }
+    }
+
+    double get_IP() {
+        if (not isIPCalculated) {
+            IP = calc_IP();
+            isIPCalculated = true;
+        }
+        return IP;
+    }
+};
+
+/*!
+ \brief Parent class for latitude-longitude partitioning classes, using 1x1 deg grid
 
  Works with NPZ-files taken from colleagues
 
@@ -460,6 +461,9 @@ protected:
     double_t *alpha = alpha_arr.data<double>();
 
 public:
+    /*!
+     1x1 deg grid, if you want to change the dimension of the cell, change arguments of GECModel constructor
+     */
     ParentLatLonGrid() : GECModel(180, 360) {};
 
     [[nodiscard]] double lat_arg(unsigned n, double d_lat) const {
@@ -528,7 +532,7 @@ public:
                         GeoArea::area(n, N, m, M, delta_lat, delta_lon) *
                         (1 - coef * alpha[hour * 360 * 180 + n * 360 + m]);
                 std::copy(std::begin(alt.altitude), std::end(alt.altitude),
-                          std::begin(model[n1].h_grid));
+                          std::begin(model[n1].altitude));
                 std::copy(std::begin(cond.sigma), std::end(cond.sigma),
                           std::begin(model[n1].sigma));
                 std::copy(std::begin(zero_j.j), std::end(zero_j.j),
@@ -542,7 +546,7 @@ public:
                         GeoArea::area(n, N, m, M, delta_lat, delta_lon) *
                         coef * alpha[hour * 360 * 180 + n * 360 + m];
                 std::copy(std::begin(alt.altitude), std::end(alt.altitude),
-                          std::begin(model[n2].h_grid));
+                          std::begin(model[n2].altitude));
                 std::copy(std::begin(cond.sigma), std::end(cond.sigma),
                           std::begin(model[n2].sigma));
                 std::copy(std::begin(geo_j.j), std::end(geo_j.j),
@@ -554,23 +558,57 @@ public:
     }
 };
 
+/*!
+ \brief This is very simplistic GEC model, using just to test the programme
+
+ 1x1, exp-sigma, simple-geo-j, zero-phi_s
+ */
+template<class Alt>
+class Test1 : public ParentLatLonGrid {
+public:
+    Test1() : ParentLatLonGrid() {
+        model.reserve(N * M);
+        double lat_n = -90.0;
+        for (size_t n = 0; n < N; ++n) {
+            lat_n += delta_lat;
+            for (size_t m = 0; m < M; ++m) {
+                Alt alt{};
+                ExpCond<Alt> cond{};
+                SimpleGeoCurrent<Alt> sim_geo_j(lat_n);
+
+                size_t n1 = n * M + m;
+                model[n1].area = GeoArea::area(n, N, m, M, delta_lat, delta_lon);
+                std::copy(std::begin(alt.altitude), std::end(alt.altitude), std::begin(model[n1].altitude));
+                std::copy(std::begin(cond.sigma), std::end(cond.sigma), std::begin(model[n1].sigma));
+                std::copy(std::begin(sim_geo_j.j), std::end(sim_geo_j.j), std::begin(model[n1].j_s));
+                model[n1].phi_s = ZeroPhiS::phi_s();
+            }
+        }
+
+    }
+};
+
 int main() {
-    std::ofstream fout("plots/diurnal_variation.txt");
-    if (!fout.is_open()) {
+    /*std::ofstream basicOfstream("plots/diurnal_variation.txt");
+    if (!basicOfstream.is_open()) {
         std::cout << "Impossible to find a file" << std::endl;
         exit(-1);
     }
-    //DateLatLonGrid<LinHG, ZeroPhiS> m(2015.9, 28);
 
     for (size_t hour = 18; hour <= 42; ++hour) {
         DateLatLonGrid<LinHG, ZeroPhiS> m(2015.9, hour);
-        fout << hour << '\t' << m.get_IP() << std::endl;
+        basicOfstream << hour << '\t' << m.get_IP() << std::endl;
     }
 
-    fout.close();
-    /*DateLatLonGrid<LinHG, ZeroPhiS> m(2015.9, 28);
+    basicOfstream.close();
+     */
+    /*
+    DateLatLonGrid<LinHG, ZeroPhiS> m(2015.9, 28);
     std::cout << m.get_IP() << std::endl;
      */
-    //m.calc_phi(90 * 2 * 360 + 2 * 180 + 1,"plots/phi_ws.txt");
+
+    Test1<LinHG> m{};
+    std::cout << m.get_IP() << std::endl;
+
     return EXIT_SUCCESS;
 }

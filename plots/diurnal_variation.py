@@ -44,7 +44,7 @@ ax.grid(which='minor',
 fig.set_figwidth(12)
 fig.set_figheight(4)
 
-fig.savefig('Diurnal Variation (2015-12-31) 18-42.png', dpi = 300)
+#fig.savefig('Diurnal Variation (2015-12-31) 18-42.png', dpi = 300)
 
 plt.show()
 
