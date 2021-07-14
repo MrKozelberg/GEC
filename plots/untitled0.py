@@ -1,36 +1,27 @@
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 import numpy as np
+from sympy import *
 
-a = np.genfromtxt('phi_wos.txt')
-#b = np.genfromtxt('phi_180*90+1.txt')
+z, sigma_0, j_0, H_0, H, sigma, j, S, n =  symbols('z, sigma_0, j_0, H_0, H, sigma, j, S, n')
 
-fig, ax = plt.subplots()
+sigma_0 = 6*10**(-14)
+H_0 = 6
+j_0 = 6.4*10**(-9)
+H = 70
 
-ax.set_xlim([0,250])
-ax.set_ylim([0,70])
-ax.set_ylabel(r'$z$ [km]')
-ax.set_xlabel(r'$\varphi$ [V]')
-ax.plot(a[:,1], a[:,0], 'b-', linewidth = 2, label = 'without sources')
-#ax.plot(b[:,1], b[:,0], 'r-', linewidth = 2, label = 'with sources')
+S = 1
 
-ax.legend()
+def sigma(z):
+    return sigma_0 *  exp(z / H_0)
 
-ax.xaxis.set_major_locator(ticker.MultipleLocator(50))
-ax.xaxis.set_minor_locator(ticker.MultipleLocator(10))
-ax.yaxis.set_major_locator(ticker.MultipleLocator(10))
-ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))
+def f1(z):
+    return j_0 / sigma(z)
 
-ax.grid(which='major',
-        color = 'k')
+def f2(z):
+    return 1 / sigma(z)
 
+sum_up = summation(S *  integrate(f1(z), (z, 5, 10)) / integrate(f2(z), (z, 0, H)), (n,1,10*360))
+sum_down = summation(S / integrate(f2(z), (z, 0, H)), (n,1,180*360))
 
-ax.minorticks_on()
-ax.grid(which='minor',
-        color = 'gray',
-        linestyle = ':')
+ans = sum_up / sum_down
 
-fig.set_figwidth(8)
-fig.set_figheight(6)
-
-plt.show()
+print(simplify(ans.evalf()))

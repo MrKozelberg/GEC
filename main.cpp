@@ -15,6 +15,11 @@ T sqr(T x) {
     return x * x;
 }
 
+template<typename T>
+T cub(T x) {
+    return x * x * x;
+}
+
 constexpr double z_0 = 0.0;
 constexpr double z_1 = 20.0; ///< the break of height grid (integer)
 constexpr double z_max = 70.0;
@@ -23,7 +28,7 @@ constexpr size_t n_2 = 19; ///< points per upper atmosphere
 constexpr size_t steps = n_1 * size_t(z_1 - z_0) + n_2; ///< total number of points
 
 /*!
- \brief This is a container of data about the column
+ \brief This is a container of column data
 
  Atmosphere is divorced into columns (add the scheme!)
  */
@@ -57,9 +62,9 @@ public:
     LinHG(): ParentHG() {
         for (size_t i = 0; i < steps; i++) {
             if (i <= n_1 * size_t(z_1)) {
-                altitude[i] = i / n_1;
+                altitude[i] = double(i) / double(n_1);
             } else {
-                altitude[i] = (i - n_1 * z_1) * (z_max - z_1) / n_2 + z_1;
+                altitude[i] = (double(i) - double(n_1) * z_1) * (z_max - z_1) / n_2 + z_1;
             };
         }
     }
@@ -116,7 +121,7 @@ public:
  */
 class ParentConductivity : public IonMobility, public IonPairProdRate, public IonIonRecombCoeff, public StdAtm {
 protected:
-    static constexpr double sigma_0 = 5.0e-14;
+    static constexpr double sigma_0 = 6.0e-14;
     static constexpr double H_0 = 6.0; // km
     constexpr static double e_0 = 1.602176634e-19; // C
 public:
@@ -194,7 +199,7 @@ public:
  */
 class ParentCurrent {
 protected:
-    static constexpr double j_0 = 1.76e-08;
+    static constexpr double j_0 = 6.4e-9;
 public:
     ParentCurrent() = default;
 
@@ -211,13 +216,13 @@ template<class Alt>
 class StepCurrent : public ParentCurrent {
 public:
     static double current_func(double z, ...) {
-        return (z >= 5.0 and z < 10.0) ? j_0 : 0.0;
+        return (z >= 5.0 and z <= 10.0) ? j_0 : 0.0;
     }
 
-    StepCurrent(unsigned lat, unsigned lon, double cbot, double ctop, double cape) : ParentCurrent() {
+    StepCurrent(...) : ParentCurrent() {
         Alt a{};
         for (size_t i = 0; i < steps; ++i) {
-            j[i] = current_func(a.altitude[i], lat, lon, cbot, ctop, cape);
+            j[i] = current_func(a.altitude[i]);
         }
     }
 };
@@ -253,7 +258,7 @@ template<class Alt>
 class [[maybe_unused]] SimpleGeoCurrent : public ParentCurrent {
 public:
     static double current_func(double z, double lat, ...) {
-        return (std::abs(lat) <= 5) ? StepCurrent<Alt>::current_func(z) : ZeroCurrent<Alt>::current_func(z);
+        return (std::abs(lat) <= 5 and std::abs(z-7.5) <= 2.5) ? j_0 : 0.0;
     }
 
     SimpleGeoCurrent(unsigned lat, ...) : ParentCurrent() {
@@ -371,11 +376,49 @@ private:
     double help[steps]{}; ///< Help-array is used when calculating the integrals
 
     /*!
-     \brief IP calculator
+     * \brief IP calculator
+     * \todo Add formula!
+     */    
 
-     \todo Add formula!
-     */
-    double calc_IP() {
+    double calc_IP_Simp() {
+        double up = 0.0;
+        double down = 0.0;
+        double h = 0.0;
+        for (size_t i = 0; i < model.capacity(); ++i) {
+            double int_curr_by_cond = 0.0;
+            double int_rev_cond = 0.0;
+
+            /*!
+             * \brief Calculation of integrals with the help of Simpson's rule
+             *
+             * On each step integrands is approximated by parapola with coefficients A, B, C
+             */
+            double x1{}, x2{}, x3{}, y1{}, y2{}, y3{}, denom{};
+            double A{}, B{}, C{};
+            for (size_t k = 0; k + 2 < n_1 * size_t(z_1); k+=2){
+                x1 = model[i].altitude[k], x2 = model[i].altitude[k+1], x3 = model[i].altitude[k+2];
+                y1 = 1 / model[i].sigma[k], y2 = 1 / model[i].sigma[k+1], y3 = 1 / model[i].sigma[k+2];
+                denom = (x1 - x2) * (x1 - x3) * (x2 - x3);
+                A = (x3 * (y2 - y1) + x2 * (y1 - y3) + x1 * (y3 - y2)) / denom;
+                B = (sqr(x3) * (y1 - y2) + sqr(x2) * (y3 - y1) + sqr(x1) * (y2 - y3)) / denom;
+                C = (x2 * x3 * (x2 - x3) * y1 + x3 * x1 * (x3 - x1) * y2 + x1 * x2 * (x1 - x2) * y3) / denom;
+                int_rev_cond += A * (cub(x3) - cub(x1)) / 3 + B * (sqr(x3) - sqr(x1)) / 2 + C * (x3 - x1);
+
+                y1 = model[i].j_s[k] / model[i].sigma[k], y2 = model[i].j_s[k+1] / model[i].sigma[k+1], y3 = model[i].j_s[k] / model[i].sigma[k];
+                denom = (x1 - x2) * (x1 - x3) * (x2 - x3);
+                A = (x3 * (y2 - y1) + x2 * (y1 - y3) + x1 * (y3 - y2)) / denom;
+                B = (sqr(x3) * (y1 - y2) + sqr(x2) * (y3 - y1) + sqr(x1) * (y2 - y3)) / denom;
+                C = (x2 * x3 * (x2 - x3) * y1 + x3 * x1 * (x3 - x1) * y2 + x1 * x2 * (x1 - x2) * y3) / denom;
+                int_curr_by_cond += A * (cub(x3) - cub(x1)) / 3 + B * (sqr(x3) - sqr(x1)) / 2 + C * (x3 - x1);
+            }
+
+            up += model[i].area * (int_curr_by_cond - model[i].phi_s) / int_rev_cond;
+            down += model[i].area / int_rev_cond;
+        }
+        return up / down;
+    }
+
+    double calc_IP_trap() {
         double up = 0.0;
         double down = 0.0;
         double h = 0.0;
@@ -387,15 +430,17 @@ private:
             double int_curr_by_cond = 0.0;
             double int_rev_cond = 0.0;
             // int calc
+            if (model[i].altitude[2] - model[i].altitude[1] == 0){
+                std::cout << i << "\n";
+            }
             for (size_t q = 1; q < steps; ++q) {
                 h = model[i].altitude[q] - model[i].altitude[q - 1];
-                int_curr_by_cond += (model[i].j_s[q] / model[i].sigma[q] + model[i].j_s[q - 1] / model[i].sigma[q - 1]) * h / 2;
+                int_curr_by_cond += (model[i].j_s[q] / model[i].sigma[q] + model[i].j_s[q - 1] / model[i].sigma[q - 1]) * h / 2.0;
                 int_rev_cond += (1 / model[i].sigma[q] + 1 / model[i].sigma[q - 1]) * h / 2;
             }
             up += model[i].area * (int_curr_by_cond - model[i].phi_s) / int_rev_cond;
             down += model[i].area / int_rev_cond;
         }
-
         return up / down;
     }
 
@@ -408,8 +453,8 @@ public:
         assert(steps % 2 != 0);
         N = N_;
         M = M_;
-        delta_lat = 180.0 / N;
-        delta_lon = 360.0 / M;
+        delta_lat = 180.0 / double(N);
+        delta_lon = 360.0 / double(M);
         /// initialization of help array
         double A[2];
         A[0] = 2;
@@ -421,7 +466,7 @@ public:
 
     double get_IP() {
         if (not isIPCalculated) {
-            IP = calc_IP();
+            IP = calc_IP_Simp();
             isIPCalculated = true;
         }
         return IP;
@@ -467,12 +512,14 @@ public:
     ParentLatLonGrid() : GECModel(180, 360) {};
 
     [[nodiscard]] double lat_arg(unsigned n, double d_lat) const {
-        double lat_n = -90.0 + d_lat * n;
+        return -90.0 + 0.5 + d_lat * n;
+        /*
         if (n == N - 1) {
             return 0.5 * (lat_n + 90.0);
         } else {
             return lat_n + 0.5 * d_lat;
         }
+        */
     }
 
     [[nodiscard]] double lon_arg(unsigned m, double d_lon) const {
@@ -511,14 +558,18 @@ public:
 template<class Alt, class PhiS>
 class DateLatLonGrid : public ParentLatLonGrid {
 private:
-    static constexpr double coef = 0.98; ///< some proportionality coefficient that defines what area occupied by sources
+    static constexpr double coef = 0.34; ///< some proportionality coefficient that defines what area occupied by sources
 public:
     explicit DateLatLonGrid(double thisYear, size_t hour) : ParentLatLonGrid() {
         set_year(thisYear);
         model.reserve(2 * N * M);
+
+        /*!
+         This variable serves as the lower boundary of the cells when calculating their areas;
+         when finding the values of functions from coordinates, use a special function for the argument
+         */
         double lat_n = -90.0;
         for (size_t n = 0; n < N; ++n) {
-            lat_n += delta_lat;
             for (size_t m = 0; m < M; ++m) {
                 Alt alt;
                 Conductivity<Alt> cond(lat_arg_m(lon_arg(m, delta_lon), lat_arg(n, delta_lat)),0.5);
@@ -554,6 +605,7 @@ public:
                 model[n2].phi_s = PhiS::phi_s(lat_arg(n, delta_lat),
                                               lon_arg(m, delta_lon));
             }
+            lat_n += delta_lat;
         }
     }
 };
@@ -570,26 +622,33 @@ public:
         model.reserve(N * M);
         double lat_n = -90.0;
         for (size_t n = 0; n < N; ++n) {
-            lat_n += delta_lat;
+            //std::cout << n << "\t" << lat_n << "\t" << lat_arg(n, delta_lat) << "\n";
             for (size_t m = 0; m < M; ++m) {
                 Alt alt{};
                 ExpCond<Alt> cond{};
-                SimpleGeoCurrent<Alt> sim_geo_j(lat_n);
+                StepCurrent<Alt> j_test{};
+                ZeroCurrent<Alt> j_zero{};
 
                 size_t n1 = n * M + m;
-                model[n1].area = GeoArea::area(n, N, m, M, delta_lat, delta_lon);
+                model[n1].area = 1.0;
                 std::copy(std::begin(alt.altitude), std::end(alt.altitude), std::begin(model[n1].altitude));
                 std::copy(std::begin(cond.sigma), std::end(cond.sigma), std::begin(model[n1].sigma));
-                std::copy(std::begin(sim_geo_j.j), std::end(sim_geo_j.j), std::begin(model[n1].j_s));
                 model[n1].phi_s = ZeroPhiS::phi_s();
+
+                if (std::fabs(lat_arg(n,delta_lat)) < 5.0) {
+                    std::copy(std::begin(j_test.j), std::end(j_test.j), std::begin(model[n1].j_s));
+                } else {
+                    std::copy(std::begin(j_zero.j), std::end(j_zero.j), std::begin(model[n1].j_s));
+                }
             }
+            lat_n += delta_lat;
         }
 
     }
 };
 
 int main() {
-    /*std::ofstream basicOfstream("plots/diurnal_variation.txt");
+    std::ofstream basicOfstream("plots/diurnal_variation.txt");
     if (!basicOfstream.is_open()) {
         std::cout << "Impossible to find a file" << std::endl;
         exit(-1);
@@ -601,14 +660,18 @@ int main() {
     }
 
     basicOfstream.close();
-     */
+
     /*
     DateLatLonGrid<LinHG, ZeroPhiS> m(2015.9, 28);
     std::cout << m.get_IP() << std::endl;
-     */
+    */
 
+    /*!
+     Test 1, the analytic answer is 8736.80375713836, while the programme gives 8927.4
+     */
+    /*
     Test1<LinHG> m{};
     std::cout << m.get_IP() << std::endl;
-
+    */
     return EXIT_SUCCESS;
 }
